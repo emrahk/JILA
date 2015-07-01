@@ -1,0 +1,647 @@
+#!/bin/bash
+#
+# Version 2.0: 1998/07/25 Joern Wilms: adapted to new bg models
+# Version 3.0: 1999/03/15 Joern Wilms: Adapted to new bg models and
+#   directory structure. Added new calling sequence
+# Version 3.1: 1999/03/31 Joern Wilms: Allow all detectors to be
+#   switched on and off
+# Version 3.2: 1999/07/08 Katja Pottschmidt: added Epoch keyword to
+#   select correct version of the background model 
+# Version 3.3: 1999/07/19 Joern Wilms: Corrected serious bug that
+#   prevented the selection of detectors in the case that data from
+#   all layers was chosen.
+# Version 3.4: 1999/10/26 Katja Pottschmidt: updated definition/use of 
+#   background models; added comments for the correct use of background 
+#   models and \-epoch keyword; added PCACAL environment variable 
+#   (to get rid of absolute directory paths).
+# Version 3.5> 1999/10/27 KP/JW: bugfix: removed .gz in filenames
+# Version 3.6: 2000/02/01 WC: epoch 4 bugfix, keyword -full added to make
+#   256 channel background spectra
+# Version 3.7: 2000/03/09 JW: model names have changed (again). 
+# Version 3.8: 2000/03/11 JW: added _full to filenames where appropriate
+# Version 3.9: 2000/03/13 JW: and repaired stupid error message resulting
+#   from the V3.8 change
+# Version 3.10: 2000/04/10 JW: exit if PCACAL is not set
+# Version 3.11: 2000/11/30 JW,KP: added _full also to extracted spectra
+#   and lightcurves (overlooked in version 3.8).
+# Version 3.12: 2000/12/04 KP: added the possibility to ignore PCUO 
+#   (in any case, whether it was turned on or not),  
+#   the corresponding file names are labelled with _ign0
+# Version 3.13: 2000/12/22 JW/KP: removed spurious echo $* that outputs
+#   the arguments to the program.
+# CVS Version 1.20: 2001/01/02 JW: update of information on what model
+#   can be used when. Now exit when q6 model is asked for.
+# Version 1.21: 2002/03/21, JW+PM+TG: Added preliminary support for 
+#  Faint background model epochs 3a and 3b
+# Version 1.22: 2002/03/26, JW+KP+TG: Added support for 
+#  background model epoch 5
+# Version 1.23: 2002/04/10, TG: In the list of model-files changed 
+# 'ls ${modelpath}/*e01*mdl > modelfile' to 'ls ${modelpath}/*e1*mdl > modelfile'
+# because that's how the model file is currently named 
+# (cf. /xtearray/calibration/pca_bkgd/Faint/)
+# Version 1.24: 2002/07/24, JW+IK: now use new epoch-independent background
+#   models if no epoch is given
+# Version 1.26: 2002/10/27, JW+TG: added -saapredict keyword
+# $Log: makeback,v $
+# Revision 1.32  2007-09-19 07:46:00  wilms
+# added maxmodels=2000 to the pcabackest call per recommendation
+# of the RXTE GOF
+#
+# Revision 1.31  2006/02/01 19:00:38  wilms
+# added backfile argument
+#
+# Revision 1.30  2004/11/11 18:27:11  wilms
+# treatment of gain corrections
+#
+# Revision 1.29  2004/06/07 22:05:20  wilms
+# better behavior with aliased rm commands
+#
+# Revision 1.28  2004/04/07 19:34:20  wilms
+# further bash modification
+#
+# Revision 1.27  2004/04/07 17:35:57  wilms
+# switch over to bash
+#
+#   
+#
+
+if [ $# -lt 2 ]; then 
+    echo 
+    echo Syntax: $0 filelist filterfile gtiname optionalarguments 
+    echo where filelist contains the list of science array files to be 
+    echo processed \(i.e., the list you gave saextrct to produce your 
+    echo standard2f spectra\) and where filterfile contains the filterfile 
+    echo produced with xtefilt \(that is the file you used to produce the 
+    echo gti-files\).  
+    echo
+    echo The optional arguments are 
+    echo \-all or \-0off or \-1off or \-2off or \-3off or \-4off: 
+    echo " "define the detectors for which to generate a background 
+    echo  \-nopcu0: completely ignore pcu0 data \(default: NOT ignore\).
+    echo
+    echo \-top: Whether to generate the background for the toplayer only.  
+    echo \-full: Generate 256 channel BG instead of 129 \(default\)
+    echo \-minchan, \-maxchan: extract only the energy band between 
+    echo "  " these two channels, absolut channel values have to be given,
+    echo "  " only one band per run  
+    echo \-gain: Apply gain corrections. NOT to be used with Standard1,
+    echo         Standard2, or Good Xenon Data.
+    echo \-saapredict: use saa_history_predict instead of normal
+    echo         saa history file \(needed for really new data\)
+    echo 
+    echo For model choose one of the following: 
+    echo " " \-SkyVLE: For sources brighter than 64cps/PCU
+    echo " " \-Faint: For sources fainter than 64cps/PCU
+    echo " " \-backfile=file: external model file
+    echo Default is the SkyVLE model.  
+    echo 
+    echo Default is the automatic decision on the epoch. If you want to
+    echo "  " force the epoch, use the following flags:
+    echo "  " \-epoch1: Start          to  21 March 1996
+    echo "  " \-epoch2: 21 March 1996  to  15 April 1996
+    echo "  " \-epoch3: 15 April 1996  to  21 March 1999
+    echo "  " \-epoch4: 22 March 1999  to  12 May 2000
+    echo "  " \-epoch5: 12 May 2000 to today
+    echo Keep in mind that near the changing dates of the epochs
+    echo you should check individually which high-voltage epoch
+    echo your data actually belong to, a more conservative definition 
+    echo of the epochs is given below:
+    echo "  " \-epoch1: Start          to  18 Jan   1996
+    echo "  " \-epoch2: 25 March 1996  to  14 April 1996
+    echo "  " For the Faint model:
+    echo "  " \-epoch3a: 15 April 1996  to  09 February 1998
+    echo "  " \-epoch3b: 09 February 1998  to  22 March 1999
+    echo "  " For the other models:
+    echo "  " \-epoch3: 15 April 1996 to  22 March 1999
+    echo "  " \-epoch4: 26 March 1999  to  12 May 200
+    echo Default is epoch 3. 
+    echo
+    echo
+    echo "Required environment variables"
+    echo "    CALDB: localtion of CALDB for SAA history"
+    echo Optional environment-variables
+    echo "    PCACAL: path to subdirectory containing PCA background model"
+    echo "            subdirectories"
+    echo " if not set: CALDB is used (not yet recommended)"
+    echo
+    exit 0
+fi
+
+
+achtung="%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+
+#
+# Check if path to the PCA calibration files (e.g., the background models) is set
+#
+pcacal=0
+echo ${achtung}
+if [ X${PCACAL} = "X" ]; then 
+    echo PCACAL VARIABLE IS NOT SET.
+    echo USING CALDB BACKGROUND MODEL
+else
+    echo PCACAL VARIABLE IS SET.
+    echo USING UPDATED BACKGROUND MODEL
+    pcacal=1
+fi
+echo ${achtung}
+
+
+filelist=$1
+filterfile=$2
+gtiname=$3
+
+
+# shift to optional arguments
+shift
+shift
+shift
+
+
+# location of background model files
+if [ $pcacal = 1 ]; then
+    backpath=${PCACAL}/pca_bkgd
+else
+    backpath=${CALDB}/data/xte/pca/cpf/bgnd
+fi
+
+saahfile=${CALDB}/data/xte/pca/cpf/saahist/pca_saa_history_20120104.fits
+
+# Preset optional arguments
+detectors="-all"
+backmodel="SkyVLE"
+modname="Sky_VLE"  # name of subdirectory
+epo="-epochauto"
+toplayer="-notop"
+fullspec="no"
+gaincorr="no"
+gainfile="-"
+ignpcu0=0
+selectchan=0
+chan1=0
+chan2=0
+chanlow=INDEF
+chanhigh=INDEF
+
+cpix="no"
+backfile="X"
+
+declare -a detectors
+detectors=(1 1 1 1 1)
+
+
+for argument in $*; do
+    found=0
+
+    #
+    # Optional Arguments for detectors
+    #
+    if [ ${argument} = "-all" ]; then
+	found=1
+    fi
+
+    if [ ${argument} = "-0off" ]; then
+	detectors[0]=0
+	found=1
+    fi
+    if [ ${argument} = "-1off" ]; then
+	detectors[1]=0
+	found=1
+    fi
+    if [ ${argument} = "-2off" ]; then
+	detectors[2]=0
+	found=1
+    fi
+    if [ ${argument} = "-3off" ]; then
+	detectors[3]=0
+	found=1
+    fi
+    if [ ${argument} = "-4off" ]; then
+	detectors[4]=0
+	found=1
+    fi
+
+    if [ ${argument} = "-34off" ]; then
+	detectors[3]=0
+	detectors[4]=0
+	found=1
+    fi
+
+    if [ ${argument} = "-134off" ]; then
+	detectors[1]=0
+	detectors[3]=0
+	detectors[4]=0
+	found=1
+    fi
+    
+    ignore=""
+    if [ ${argument} = "-nopcu0" ]; then
+	ignpcu0=1
+	found=1
+        ignore="-nopcu0"
+    fi
+
+    #
+    # Optional arguments for the toplayer
+    #
+
+    if [ ${argument} = "-top" ]; then
+	toplayer="-top"
+	found=1
+    fi
+
+    if [ ${argument} = "-notop" ]; then
+	toplayer="-notop"
+	found=1
+    fi
+
+    # need full background spectrum as well if CPIX is given
+    if [ ${argument#-backfile=} != ${argument} ]; then
+	backfile=${argument#-backfile=}
+	backmodel="user"
+	if [ -e $backfile ]; then
+	    # get absolute path
+	    backfile=`readlink -f ${backfile}`
+	else
+	    echo ERROR
+	    echo "BACKFILE: file does not exist"
+	    exit 1
+	fi
+	found=1
+    fi
+
+    #
+    # Optional arguments for the number of channels
+    #
+    
+    if [ ${argument} = "-full" ]; then
+	fullspec="yes"
+        found=1
+    fi
+
+    # need full background spectrum as well if CPIX is given
+    if [ ${argument#-cpix=} != ${argument} ]; then
+	cpix=${argument#-cpix=}
+	fullspec="yes"
+	found=1
+    fi
+    
+    #
+    # Optional argument for gain corrections for non-standard datamodes
+    #
+    
+    if [ ${argument} = "-gain" ]; then
+	gaincorr="yes"
+        gainfile="CALDB"
+        found=1
+    fi
+
+    #
+    # Optional argument for energy band selected lightcurve
+    #
+    if [ ${argument#-minchan=} != ${argument} ]; then
+	chanlow=${argument#-minchan=}
+	found=1
+        chan1=1
+    fi  
+    if [ ${argument#-maxchan=} != ${argument} ]; then
+	chanhigh=${argument#-maxchan=}
+	found=1
+	chan2=1
+    fi 
+
+    #
+    # Optional arguments for background model
+    #
+
+    if [ ${argument} = "-SkyVLE" ]; then
+	backmodel="SkyVLE"
+	modname="Sky_VLE"
+	found=1
+    fi
+
+    if [ ${argument} = "-EarthVLE" ]; then
+	backmodel="EarthVLE"
+	modname="Earth_VLE"
+	found=1
+    fi
+
+    if [ ${argument} = "-Faint" ]; then
+	backmodel="Faint"
+	modname="Faint"
+	found=1
+    fi
+
+    if [ ${argument} = "-Q6" ]; then
+	backmodel="Q6"
+	modname="Q6"
+	found=1
+    fi
+
+    if [ ${argument} = "-saapredict" ]; then
+	saahfile=${backpath}"/pca_saa_predict.gz"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch1" ]; then
+	epo="-epoch1"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch2" ]; then
+	epo="-epoch2"
+	found=1
+    fi
+
+
+    if [ ${argument} = "-epoch3" ]; then
+	epo="-epoch3"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch3a" ]; then
+	epo="-epoch3a"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch3b" ]; then
+	epo="-epoch3b"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch4" ]; then
+	epo="-epoch4"
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch5" ]; then
+	epo="-epoch5"
+	found=1
+    fi
+
+    if [ ${argument} = "-epochauto" ]; then
+	epo="-epochauto"
+	found=1
+    fi
+
+    #
+    # Catch unknown arguments
+    #
+    if [ ${found} = 0 ]; then
+	echo ERROR
+	echo "Unknown optional argument" ${argument}
+	exit 1
+    fi
+done
+
+selectchan=${chan1}+${chan2}
+if [ ${selectchan} == "1"  ]; then 
+    echo ERROR
+    echo "No channels or lower *and* upper channel for lightcurve extraction have to be given."
+    exit 1 
+fi
+
+echo ${achtung}
+echo " Generating background with"
+echo "   Detectors      " ${detectors[*]}
+if [ ${ignpcu0} -eq 1 ]; then 
+    echo "                   IGNORING PCU0" 
+fi
+echo "   Background     " ${backmodel}
+echo "   Epoch          " ${epo}
+echo "   Layers         " ${toplayer}
+echo "   SAA History    " ${saahfile}
+echo "   Gain Corr.     " ${gaincorr}
+if [ ${cpix} != "no" ]; then
+    echo  "   CPIX Value     " ${cpix}
+fi
+echo ${achtung}
+
+
+#
+# Location of model-files for the background-determination
+#
+modelpath=${backpath}/${modname}
+
+
+if [ ${modname} = "Q6" ]; then
+    echo ERROR
+    echo The Q6 model should not be used at all
+    echo use the SkyVLE or Faint model instead
+    exit 1
+fi
+
+if [ ${modname} = "EarthVLE" ]; then
+    echo ERROR
+    echo The EarthVLE model should not be used at all
+    echo use the SkyVLE or Faint model instead
+    exit 1
+fi
+
+#
+# List of model-files
+#
+if [ ${epo} = "-epoch1" ]; then
+    if [ ${modname} = "Faint" ]; then
+	ls ${modelpath}/*e1*mdl > modelfile
+    fi
+    if [ ${modname} = "Sky_VLE" ]; then
+	ls ${modelpath}/*e1*mdl > modelfile
+    fi
+fi
+
+if [ ${epo} = "-epoch2" ]; then
+    ls ${modelpath}/*e2*mdl > modelfile
+fi
+
+if [ ${epo} = "-epoch3" ]; then
+    ls ${modelpath}/*e3*mdl > modelfile
+fi
+
+if [ ${epo} = "-epoch3a" ]; then
+    ls ${modelpath}/*e3a*mdl > modelfile
+fi
+
+if [ ${epo} = "-epoch3b" ]; then
+    ls ${modelpath}/*e3b*mdl > modelfile
+fi
+
+if [ ${epo} = "-epoch4" ]; then
+    ls ${modelpath}/*e4*mdl > modelfile
+fi
+
+if [ ${epo} = "-epoch5" ]; then
+    ls ${modelpath}/*e5*mdl > modelfile
+fi
+
+if [ ${epo} = "-epochauto" ]; then
+    ls ${modelpath}/*eM*mdl > modelfile
+fi
+
+if [ X${backfile} != "XX" ]; then
+    echo $backfile > modelfile
+fi
+
+#
+# File-list containing background data
+#
+backdata=${filelist}\_back\_${backmodel}
+rm -f ${backdata}.txt
+touch ${backdata}.txt
+
+#
+# List of Files to be processed
+#
+declare -a files
+files=(`cat ${filelist}.txt`)
+
+i=0
+while [ $i != ${#files[*]} ]
+do
+    infile=`basename ${files[i]}`
+    outfile=`echo $infile | sed s/\.gz//`
+    outfile=${outfile}\_back\_${backmodel}
+    if [ ${fullspec} = "yes" ]; then
+	outfile=${outfile}\_full
+    fi
+    if [ ${gaincorr} = "yes" ]; then
+	outfile=${outfile}\_gain
+    fi
+
+    #if [ ${ignpcu0} -eq 1 ]; then 
+    #	outfile=${outfile}"_ign0"
+    #fi
+
+    #
+    # Generation of Background-File
+    #
+    if [ -e ${outfile} ]; then
+	echo ${achtung}
+	echo ${outfile} exists, skipping pcabackest run
+	echo ${achtung}
+    else 
+	echo ${achtung}
+	echo Generating ${outfile} from ${infile}
+	echo ${achtung}
+	ln -f -s ${files[i]} ./${infile}
+	pcabackest \
+	    infile=${infile} \
+	    outfile=${outfile} \
+	    modelfile=@modelfile \
+	    filterfile=${filterfile} \
+	    interval=16 \
+	    layers=yes \
+	    gaincorr=${gaincorr}  \
+            gcorrfile=${gainfile} \
+	    fullspec=${fullspec}  \
+	    modeltype=both \
+	    timeslop=128 \
+	    saahfile=${saahfile} \
+            maxmodels=2000 \
+	    syserr=no  \
+	    clobber=yes
+	rm -f ./${infile}
+    fi
+    echo ${outfile} >> ${backdata}.txt
+
+    let i+=1
+done
+
+#
+# Column-name for extraction (COL contains all dets, ANODES only
+# the top layer).
+# DO NOT USE COLUMNS AS THE VARIABLE NAME AS THIS IS A PROTECTED 
+# VARIABLE ON LINUX
+#
+col="GOOD"
+ANODES=""
+for det in 0 1 2 3 4; do
+    if [ ${detectors[$det]} -eq 1 ]; then	
+	if [ \( ${det} -eq 0 \) -a \( ${ignpcu0} -eq 1 \) ]; then 
+	    echo makeback: PCU0 is ignored: ${ignore}     
+	else
+	    ANODES=${ANODES}" X1LSpecPcu"${det}" X1RSpecPcu"${det}
+	    if [ X${toplayer} != X"-top" ]; then 
+		ANODES=${ANODES}" X2LSpecPcu"${det}" X2RSpecPcu"${det}
+		ANODES=${ANODES}" X3LSpecPcu"${det}" X3RSpecPcu"${det}
+	    fi
+ 	fi    
+    fi
+done
+
+
+rm -f layer.dat
+for anode in ${ANODES}; do
+    echo ${anode} >> toplayer.dat
+done
+col=@toplayer.dat
+
+outroot=${backdata}
+if [ ${toplayer} = "-top" ]; then
+    outroot=${outroot}"_top"
+fi
+outroot=${outroot}\_${gtiname}
+if [ ${fullspec} = "yes" ]; then
+    outroot=${outroot}"_full"
+fi
+
+if [ ${gaincorr} = "yes" ]; then
+    outroot=${outroot}"_gain"
+fi
+
+#
+# Extraction of Light-Curve and Spectrum
+#
+
+echo ${achtung}
+echo Extracting lc and pha for GTIFILE ${gtifile}
+echo from file ${backdata}.txt, 
+echo producing ${outroot}
+echo ${achtung}
+
+if [ ${selectchan} == "1+1" ]; then 
+    if [ -e ${outroot}_${chanlow}_${chanhigh}.pha -a -e ${outroot}_${chanlow}_${chanhigh}.lc ]; then
+	echo ${outroot}_${chanlow}_${chanhigh}.pha and ${outroot}_${chanlow}_${chanhigh}.lc exist --- skipping
+    else
+	if [ ${cpix} == "no" ]; then 
+	    saextrct infile=@${backdata}.txt gtiorfile=APPLY \
+		gtiandfile=${gtiname}.gti outroot=${outroot}_${chanlow}_${chanhigh} accumulate=ONE \
+		timecol=TIME columns=${col} binsz=16 printmode=BOTH \
+		lcmode=RATE spmode=SUM timemin=INDEF timemax=INDEF \
+		timeint=INDEF chmin=${chanlow} chmax=${chanhigh} chint=INDEF \
+		chbin=INDEF dryrun=no
+	else
+	    saextrct infile=@${backdata}.txt gtiorfile=APPLY \
+		gtiandfile=${gtiname}.gti outroot=${outroot}_${chanlow}_${chanhigh} accumulate=ONE \
+		timecol=TIME columns=${col} binsz=16 printmode=BOTH \
+		lcmode=RATE spmode=SUM timemin=INDEF timemax=INDEF \
+		timeint=INDEF chmin=${chanlow} chmax=${chanhigh} "chint=${cpix}" \
+		chbin=INDEF dryrun=no
+	fi
+    fi
+else	
+    if [ -e ${outroot}.pha -a -e ${outroot}.lc ]; then
+	echo ${outroot}.pha and ${outroot}.lc exist --- skipping
+    else
+	if [ ${cpix} == "no" ]; then 
+	    saextrct infile=@${backdata}.txt gtiorfile=APPLY \
+		gtiandfile=${gtiname}.gti outroot=${outroot} accumulate=ONE \
+		timecol=TIME columns=${col} binsz=16 printmode=BOTH \
+		lcmode=RATE spmode=SUM timemin=INDEF timemax=INDEF \
+		timeint=INDEF chmin=INDEF chmax=INDEF chint=INDEF \
+		chbin=INDEF dryrun=no
+	else
+	    saextrct infile=@${backdata}.txt gtiorfile=APPLY \
+		gtiandfile=${gtiname}.gti outroot=${outroot} accumulate=ONE \
+		timecol=TIME columns=${col} binsz=16 printmode=BOTH \
+		lcmode=RATE spmode=SUM timemin=INDEF timemax=INDEF \
+		timeint=INDEF chmin=INDEF chmax=INDEF "chint=${cpix}" \
+		chbin=INDEF dryrun=no
+	fi
+    fi
+fi
+
+if [ -e toplayer.dat ]; then
+    rm -f toplayer.dat
+fi
+
+exit 0

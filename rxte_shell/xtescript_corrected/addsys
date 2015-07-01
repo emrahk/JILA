@@ -1,0 +1,33 @@
+#!/bin/bash
+
+if [ ${#*} = 0 ]; then
+    echo
+    echo Syntax: $0 inputpha outputpha
+    echo
+fi
+
+infil=""
+outfil=""
+
+for argument in $*; do
+    found=0
+    if [ ${found} = 0 ]; then
+        if [ X${infil} = X ]; then
+            infil=${argument}
+        else
+           outfil=${argument}
+        fi
+    fi
+done
+
+echo
+echo $infil
+echo $outfil
+
+
+grppha infile=${infil}  outfile=${outfil} \
+                comm="systematics 0-15 0.008 16-128 0.004 \
+                    & bad 0-3 & bad 53-128 & exit" \
+                clobber=y > /dev/null
+
+echo DONE

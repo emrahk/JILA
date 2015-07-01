@@ -1,0 +1,1363 @@
+#!/bin/bash
+#
+# create HEXTE spectra and lightcurves
+#
+# Pre-Versions : 1.0          J.W./I.K., 1997/03/04
+#     Version  : 2.0          J.W./I.K., 1997/03/05
+#       adapted to FTOOLS 3.6.1      I.K., 1997/03/17
+#       adapted to hxtdeadpha 0.0.4  I.K., 1997/05/13
+#       adapted to hxtdead 0.0.1     I.K., 1997/07/10
+#       adapted to hxtdead 1.5 1997/10/14 J.W., 1998/01/20
+#     Version  : 3.0               JW, 1998/05/12
+#       heavily modified and made consistent with extract
+#     Version  : 3.1               JW, 1998/07/25
+#       softlink pha-files only if they exist
+#       (bug-fix from Chris Reynolds)
+#     Version  : 4.0               JW, 1999/05/09
+#       new optional arguments and general clean up
+#     Version  : 4.1               IK, 1999/09/28
+#       mathpha no longer chokes on too many files
+#     Version  : 4.2               IK, 1999/11/02
+#       included DEADC column; generate a gti file containing
+#       all gtis from one cluster merged with the global gti-file
+#       new file (allgti-a/b.gti) is left in ../filter
+#     Version  : 4.3               WC, 2000/02/01
+#       new call for hxtdead, added switch for 4 detectors in
+#       cluster B, mathpha adds keywords needed by hxtrsp 
+#     Version  : 5.0         Biff Heindl, 2000/03/02
+#       tons of improvements, adoption to Ftools 5.0
+#     Version  : 5.1         Ingo Kreykenbohm 2000/03/09
+#       removed some bugs concerning appendname introduced in Version 5.0
+#       some small cosmetics
+#     Version  : 5.2         Joern Wilms 2000/04/07
+#       streamlined computation of $sumfiles, removed section adding
+#       keywords to the extensions (done in sumpha)
+#
+#     Version  : 5.3         Emrah Kalemci 2000/12/10
+#      .gti generation routine is modified. The event logic analyzer changes
+#      state when a saa related command issued. This causes good time intervals
+#      containing no data. This is fixed. Acknowledgement: creators of smallgap
+#      elimination procedure in pca_standard. 
+#
+#     Version :  5.4         Emrah Kalemci 2000/12/14
+#      It now creates the directory that everything is written in. The user
+#      does not have to create it beforehand.
+#
+#     Version :  5.5         Markus Kuster 2001/07/18
+#      Fixed problem with appendname and combinepha. Now the name of the 
+#      final background file hexte-a_bkgpm.pha includes ${appendname} as 
+#      well. 
+#
+#     Version :  5.6         Ingo Kreykenbohm 2001/09/20
+#      Replaced sumpha by local_sumpha as LHEASOFT 5.1 has a sumpha of 
+#      its own 
+#
+#     Version:   5.7         Emrah Kalemci 2001/09/27
+#      Corrected a problem which were causing annoying error messages
+#      if the gti file had one good time interval. Just cosmetics, it was
+#      not causing a problem in the data analysis. 
+#
+#     CVS Version 1.21, JW, 2002/07/24
+#        changed local_sumpha to addpha since the script has changed
+#        its name
+#
+#     CVS Version 1.22 JW/TG, 2002.10.22
+#        added better handling for the case that one of the eventfiles
+#        does not contain data for the source or one of the background
+#        positions. Script will now fail if only _p or _m background
+#        information is available and -noseparate is not given. Script
+#        will also fail in the (improbable) case that the eventfiles
+#        do not contain any source data, as well as in the (probable)
+#        case that no background info is available (i.e., for the
+#        nonrocking case -- to get source data in the nonrocking case,
+#        we'll have to do some more work, but at least we now get
+#        nicer error messages...)
+#
+#     CVS Version 1.24, JW, 2002.10.22: no changes, just update to
+#        correct CVS version number
+#     CVS Version 1.25, IK, 2002.11.08: added -dt switch to 
+#        allow the determination of the time resolution of the resulting
+#        light curves
+#     CVS Version 1.26, JW, 2002.12.26/27:
+#        added code to prevent crashes if _m or _b background does not
+#           exist.
+#        added -mergegti option
+#
+# $Log: hexte_standard,v $
+# Revision 1.37  2008-01-14 15:05:43  wilms
+# clarified error message when usergti is not found
+#
+# Revision 1.36  2007/11/17 22:30:18  wilms
+# Set RA_OBJ and DEC_OBJ in generated pha files if given on the command
+# line to allow the script to work on realtime data
+#
+# Revision 1.35  2007/09/05 08:49:12  wilms
+# Fixed extraction of science archive data for cluster b, which produced
+# an error because of a typo.
+#
+# Revision 1.34  2007/05/02 12:52:41  wilms
+# added -norock option
+#
+# Revision 1.33  2007/02/19 20:57:58  wilms
+# clarified in the help documentation that one of -a, -b, or -b4 is
+# mandatory (suggested by Dipankar)
+#
+# Revision 1.32  2006/08/21 04:00:43  wilms
+# added treatment of archive mode and of certain
+# binned data modes (the latter without deadtime correction)
+#
+# Revision 1.31  2006/01/27 22:51:39  wilms
+# now use caldb for hxtdead. This means that hxtdead_200002_pw${cluster}.fits
+# will be used, which is identical to the previously used hxtdead_97jul2
+# file, except for the March/April 1996 time interval.
+#
+# Revision 1.30  2006/01/27 21:55:47  wilms
+# now using correct binsz for science archive data
+#
+# Revision 1.29  2004/06/07 22:05:19  wilms
+# better behavior with aliased rm commands
+#
+# Revision 1.28  2004/04/07 18:35:28  wilms
+# further bash changes
+#
+# Revision 1.27  2004/04/07 17:43:07  wilms
+# change over to bash
+#
+# Revision 1.33 19.10-2009 C.F. 
+# Added tstart, tstop, and timeint options
+#
+#
+#
+# WARNING TO ALL WHO ARE PROGRAMMING LOOPS: unlike tcsh, ksh is ZERO based
+#
+if [ "TEST $1" = "TEST " ]; then 
+    echo
+    echo Syntax: $0 obsid obspath dirname \[optional arguments\]
+    echo where 
+    echo "  "obsid  : Observation ID of files to be processed
+    echo "  "obspath: Path to observation
+    echo "  "dirname: Directory for the files to be generated is
+    echo "      "dirname/hexte
+    echo "plus either"
+    echo \-a or \-b,\-b4  : detector to extract \(b4 gives 4 dets in cluster B\)
+    echo The optional arguments are
+    echo \-norock: set to extract data from a nonrocking obs only
+    echo \-uncompress: set to gunzip data files
+    echo \-noseparate: set to extract only one background file
+    echo "   ("default is to extract p and m backgrounds")"
+    echo \-saa=number Time after SAA to start using the data \(default=30\)
+    echo \-elv=number Minimum elevation to allow \(default=10\)
+    echo \-gtifile=GTI where GTI is the name of a gti-file in obspath/filter
+    echo "    " use GTI instead of standard hexte.gti
+    echo "    " NOTE: FILENAME MUST end with .gti
+    echo \-mergegti: if set, merge gtifile with standard GTI-file
+    echo \-tstart=tstart: adopted tstart
+    echo "  " in SCCS - see timetrans \(default is \'INDEF\'\).
+    echo \-tstop=tstop: adopted tstop
+    echo "  " in SCCS - see timetrans \(default is \'INDEF\'\).
+    echo \-timeint=timeint: ascii timeinterval file
+    echo "  " data in SCCS e.g. -timeint=@../../no_burst.txt \(default is \'INDEF\'\).
+    echo \-ra=RA where RA is in decimal degrees
+    echo \-dec=DEC where DEC is in decimal degrees
+    echo \-dt=twoexp: Extract lightcurves and spectra with a time-resolution
+    echo "   " of 2^-twoexp sec \(default is '-dt=0', which means a time
+    echo "   " resolution of 1 second\). To extract with time-res \>1s, 
+    echo "   " set dt to a NEGATIVE number!
+    echo \-bary: produce barycentered lightcurves as well
+
+    echo
+    echo
+    exit 0
+fi
+
+
+
+obsid=$1
+obspath=$2
+dirname=$3
+
+
+#
+# Process optional arguments
+#
+
+# shift to optional arguments
+shift
+shift
+shift
+
+# Preset optional arguments
+userdata=1
+separate=1
+cluster=""
+uncompress=0
+saa="30.0"
+elv="10.0"
+standardgti=1
+pwbdet="013"
+userra="X"
+userdec="X"
+usergti="X"
+mergegti=0
+dt=0
+norock=0
+timestart=INDEF
+timestop=INDEF
+timeintervals=INDEF
+bary=0
+
+for argument in $*; do
+    found=0
+    #
+    # Optional arguments for detectors
+    #
+    if [ ${argument} = "-a" ]; then
+	cluster="a"
+	found=1
+    fi
+    if [ ${argument} = "-b" ]; then
+	cluster="b"
+	found=1
+    fi
+    if [ ${argument} = "-b4" ]; then
+	cluster="b"
+	found=1
+        pwbdet="0123"
+    fi
+    if [ ${argument} = "-bary" ]; then
+	bary=1
+	found=1
+    fi
+
+    #
+    # Optional argument: extract from nonrocking observation
+    #
+    if [ ${argument} = "-norock" ]; then
+	norock=1
+	found=1
+    fi
+
+    #
+    # Optional argument: uncompress files for speed
+    #
+    if [ ${argument} = "-uncompress" ]; then
+	uncompress=1
+	found=1
+    fi
+
+    #
+    # Optional argument: process background positions separately
+    #
+    if [ ${argument} = "-separate" ]; then
+	separate=1
+	found=1
+    fi
+    if [ ${argument} = "-noseparate" ]; then
+	separate=0
+	found=1
+    fi
+
+    #
+    # Use nonstandard GTI-File
+    #
+    if [ ${argument#-gtifile=} != ${argument} ]; then
+	usergti=${argument#-gtifile=}
+	standardgti=0
+	found=1
+    fi
+
+    #
+    # Optional argument: AND usergti and hexte.gti together
+    #
+    if [ ${argument} = "-mergegti" ]; then
+	mergegti=1
+	found=1
+    fi
+
+    #
+    # Timestart
+    #
+    if [ ${argument#-tstart=} != ${argument} ]; then
+	timestart=${argument#-tstart=}
+	found=1
+    fi
+
+    #
+    # Timestop
+    #
+    if [ ${argument#-tstop=} != ${argument} ]; then
+	timestop=${argument#-tstop=}
+	found=1
+    fi
+
+    #
+    # Timeint
+    #
+    if [ ${argument#-timeint=} != ${argument} ]; then
+        timeintervals="${argument#-timeint=}"
+        found=1
+    fi
+
+
+
+
+    #
+    # Optional argument: uncompress files for speed
+    #
+    if [ ${argument} = "-archive" ]; then
+	userdata=0
+	found=1
+    fi
+
+    #
+    # Time after SAA
+    #
+    if [ ${argument#-saa=} != ${argument} ]; then
+	saa=${argument#-saa=}
+	found=1
+    fi
+
+    #
+    # Minimum Elevation
+    #
+    if [ ${argument#-elv=} != ${argument} ]; then
+	elv=${argument#-elv=}
+	found=1
+    fi
+    #
+    # User supplied RA
+    #
+    if [ ${argument#-ra=} != ${argument} ]; then
+	userra=${argument#-ra=}
+	echo User RA supplied: $userra
+	found=1
+    fi
+    #
+    # User supplied Dec
+    #
+     if [ ${argument#-dec=} != ${argument} ]; then
+	userdec=${argument#-dec=}
+	echo User DEC supplied: $userdec
+	found=1
+    fi
+    if [ ${argument#-dt} != ${argument} ]; then
+	dt=${argument#-dt=}
+	echo Using a time resolution of 2^\(-${dt}\)
+	found=1
+    fi
+    #
+    # Catch unknown arguments
+    #
+    if [ ${found} = 0 ]; then
+	echo ERROR
+	echo "Unknown optional argument" ${argument}
+	exit 1
+    fi
+done
+
+achtung="%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+
+
+if [ "XX${cluster}" = "XX" ]; then
+    echo ${achtung}
+    echo ERROR
+    echo must define cluster to extract
+    echo ${achtung}
+    exit 1
+fi
+
+# if GTI is to be merged, then set standardgti=1 to produce hexte gtifile
+if [ $mergegti = 1 ]; then
+    standardgti=1
+fi
+
+
+
+timres=`echo "scale=8;2^(-(${dt}))" | bc`
+
+echo ${achtung}
+echo "Extraction with"
+echo "   Obsid           " ${obsid}
+echo "   Obspath         " ${obspath}
+echo "   Dirname         " ${dirname}
+echo "   Cluster         " ${cluster}
+echo "   Uncompress      " ${uncompress}
+echo "   Time Resolution " $timres sec
+if [ ${standardgti} = 1 ]; then 
+    echo "   SAA Time       " ${saa}
+    echo "   Elevation      " ${elv}
+fi
+
+if [ ${usergti} != "X" ]; then
+    echo "   Using GTI file " ${usergti}
+fi
+
+if [ ${norock} = 1 ]; then
+    echo "   Assuming HEXTE did not rock"
+fi
+
+if [ ${userdata} = 0 ]; then
+    echo "   WORKING ON SCIENCE ARCHIVE DATA"
+fi
+
+if [ ${bary} -eq 1 ]; then
+    echo "Also producing barycentered lightcurve"
+fi
+
+
+echo ${achtung}
+
+
+#
+# Generate list of files to be processed
+#
+
+# Total Path to observation
+fullpath=${obspath}/${obsid}
+
+# Modified by Emrah 12/14/2000
+# Create the initial directory if it does not exist
+#
+if [ -e ${dirname} ]; then
+  echo ${dirname} exists 
+else
+  mkdir ${dirname} > /dev/null 2>&1
+fi
+#
+
+#
+# Make directory for data to be extracted
+#
+
+if [ ${userdata} = 1 ]; then
+    mkdir ${dirname}/hexte > /dev/null 2>&1
+    cd ${dirname}/hexte
+else
+    mkdir ${dirname}/hexte_archive > /dev/null 2>&1
+    cd ${dirname}/hexte_archive
+fi
+
+# Find HEXTE data and housekeeping files
+declare -a files
+declare -a hkfile
+if [ "${cluster}" = "a" ]; then 
+    if [ ${uncompress} = 1 ]; then 
+	if [ ${userdata} = 1 ]; then 
+	    find ${fullpath}/hexte -name "FS50*.gz" -exec gunzip {} \;
+	else
+	    find ${fullpath}/hexte -name "FS52*.gz" -exec gunzip {} \;
+	fi
+	find ${fullpath}/hexte -name "FH53*.gz" -exec gunzip {} \;
+    fi 
+    # Data files and 16s housekeeping files
+    if [ ${userdata} = 1 ]; then
+	files=(`find ${fullpath}/hexte -name "FS50*" -print`)
+    else
+	files=(`find ${fullpath}/hexte -name "FS52*" -print`)
+    fi
+    hkfile=(`find ${fullpath}/hexte -name "FH53*" -print`)
+fi
+
+if [ "${cluster}" = "b" ]; then 
+    if [ ${uncompress} = 1 ]; then 
+	if [ ${userdata} = 1 ]; then
+	    find ${fullpath}/hexte -name "FS56*.gz" -exec gunzip {} \;
+	else
+	    find ${fullpath}/hexte -name "FS58*.gz" -exec gunzip {} \;
+	fi
+	find ${fullpath}/hexte -name "FH59*.gz" -exec gunzip {} \;
+    fi
+    # Data files and 16s housekeeping files
+    if [ ${userdata} = 1 ]; then
+	files=(`find ${fullpath}/hexte -name "FS56*" -print`)
+    else
+	files=(`find ${fullpath}/hexte -name "FS58*" -print`)
+    fi
+    hkfile=(`find ${fullpath}/hexte -name "FH59*" -print`)
+fi
+
+#
+# Separate background and source 
+#
+
+echo ${achtung}
+echo Running hxtback, might take a while
+echo ${achtung}
+
+if [ ${separate} = 0 ]; then 
+    rm -f ${obsid}_bkg ${obsid}_src 
+    touch ${obsid}_bkg ${obsid}_src
+else
+    rm -f ${obsid}_m ${obsid}_p ${obsid}_src 
+    touch ${obsid}_m ${obsid}_p ${obsid}_src
+fi
+
+for fil in ${files[*]} ; do
+    echo ${achtung}
+    echo Operating on $fil
+    echo ${achtung}
+    file=`basename ${fil} | sed s/\.gz//`
+    if [ ${separate} = 0 ]; then 
+	if [ -e ${file}_bkg -a -e ${file}_src ]; then
+	    echo ${file}_bkg and ${file}_src exist --- skipping
+	else
+	    echo Running hxtback on $file
+	    hxtback -i ${fil} -b
+	fi
+	# Write eventfiles to list of eventfiles, if they've been
+        # produced by hxtback (not always the case since hxtback 
+        # deletes files with zero lines [can happen, e.g., if the time
+        # interval of the event file is shorter than the rocking cycle
+        # and results in stupid evselect error messages])
+        if [ -e ${file}_src ]; then 
+	    echo ${file}_src >> ${obsid}_src
+	fi
+	if [ ${norock} = 0 -a -e ${file}_bkg ]; then
+	    echo ${file}_bkg >> ${obsid}_bkg
+	fi
+    else # separate != 0
+	if [ -e ${file}_p -a -e ${file}_src -a -e ${file}_m ]; then
+	    echo ${file}_p, ${file}_m, and ${file}_src exist --- skipping
+	else
+	    echo Running hxtback on $file
+	    hxtback -i ${fil}
+	fi
+	# Write eventfiles to filelist if they exist
+	if [ -e ${file}_src ]; then
+	    echo ${file}_src >> ${obsid}_src
+	fi
+	if [ ${norock} = 0 -a -e ${file}_p ]; then
+	    echo ${file}_p >> ${obsid}_p
+	fi
+	if [ ${norock} = 0 -a -e ${file}_m ]; then 
+	    echo ${file}_m >> ${obsid}_m
+	fi
+    fi
+done
+#
+
+#
+# Bail out if ${obsid}_src _p and _m do not exist (should not happen,
+# but CAN happen for short observations)
+#
+if [ -e ${obsid}_src ]; then
+    echo Generation of filelist ${obsid}_src was successful.
+else
+    echo ERROR
+    echo hxtback did not produce any valid ${obsid}_src file. Exiting.
+    exit 1
+fi
+
+if [ ${norock} = 0 ]; then 
+    if [ ${separate} = 0 ]; then
+	if [ -e ${obsid}_bkg ]; then
+	    echo Generation of filelist ${obsid}_bkg was successful.
+	else
+	    echo ERROR
+	    echo hxtback did not produce any valid ${obsid}_bkg
+	    echo file. Either the observation was too short or
+	    echo HEXTE was not rocking. Exiting. 
+	    exit 1
+	fi
+    else
+	if [ -e ${obsid}_p ]; then
+	    echo Generation of filelist ${obsid}_p was successful.
+	else
+	    echo ERROR
+	    echo hxtback did not produce any valid ${obsid}_p
+	    echo file. Exiting. You might want to try the noseparate flag.
+	    exit 1
+	fi
+	if [ -e ${obsid}_m ]; then
+	    echo Generation of filelist ${obsid}_m was successful
+	else
+	    echo ERROR
+	    echo hxtback did not produce any valid ${obsid}_m 
+	    echo file. Exiting. You might want to try the noseparate flag.
+	    exit 1
+	fi
+    fi
+fi
+
+#
+# Sort _src and _bkg to get correct temporal order
+#
+cat ${obsid}_src | sort -u > temp.ttt ; mv temp.ttt ${obsid}_src
+if [ ${norock} = 0 ]; then
+    if [ ${separate} = 0 ]; then 
+	cat ${obsid}_bkg | sort -u > temp.ttt ; mv temp.ttt ${obsid}_bkg
+    else
+	cat ${obsid}_p | sort -u > temp.ttt ; mv temp.ttt ${obsid}_p
+	cat ${obsid}_m | sort -u > temp.ttt ; mv temp.ttt ${obsid}_m
+    fi
+fi
+
+#
+# Define Calibration files 
+#
+echo ${achtung}
+echo Using calibration files from caldb
+echo ${achtung}
+calib=caldb
+
+j=0
+mode=''
+
+#
+# Filterfile
+# if it doesn't exist, make it!
+#
+if [ ! -e ../filter ]; then
+    mkdir ../filter
+fi
+#   
+filterfile=`find ../filter -name "*xfl" -print`
+#
+if [ X${filterfile}X = XX ]; then
+    cd ../filter
+    if [ ! -e appidlist ]; then 
+	ln -f -s ${XTETOOLS}/appidlist ./appidlist
+    fi 
+    xtefilt -o $obsid -p $fullpath -a appidlist -t16 -c yes
+    if [ ${userdata} = 1 ]; then
+	cd ../hexte
+    else
+	cd ../hexte_archive
+    fi
+    filterfile=`find ../filter -name "*xfl" -print`
+fi
+
+#
+# Generate HEXTE GTI file
+#
+if [ ${standardgti} = 1 ]; then 
+    gtifile=../filter/good_hexte.gti
+    if [ -e ${gtifile} ]; then
+	echo ${achtung}
+	echo Found GTI file ${gtifile}
+	echo ${achtung}
+    else
+	expression="offset.lt.0.01.and.ELV.gt."${elv}".and."
+	expression=${expression}"(time_since_saa.lt.0.0.or."
+	expression=${expression}"time_since_saa.gt."${saa}")"
+	echo ${achtung}
+	echo Generating gti-file good_hexte.gti
+	echo using expression ${expression}
+	echo ${achtung}
+	cd ../filter
+	maketime infile=${filterfile} \
+	    outfile=good_hexte.gti \
+	    expr=${expression} \
+	    name=NAME \
+	    value=VALUE \
+	    time=Time \
+	    compact=no \
+	    clobber=yes
+
+	declare -a afiles
+	if [ "${cluster}" = "a" ]; then 
+	    afiles=(`find ${fullpath}/hexte -name "FS52*" -print`)
+	else
+	    afiles=(`find ${fullpath}/hexte -name "FS58*" -print`)
+	fi
+
+	let i=0
+	for fik in ${afiles[*]} ; do
+	    maketime infile=${fik} \
+                outfile=FS_${cluster}_${i}.gti \
+		expr=goodcnt.gt.30. \
+		name=NAME \
+		value=VALUE \
+		time=Time \
+		compact=no \
+		clobber=yes
+	    echo FS_${cluster}_${i}.gti >> dummy.gtis
+	    let i+=1
+        done
+
+	if [ ${i} = 1 ]; then
+	    cp FS_${cluster}_0.gti FS_${cluster}_merged.gti
+            # one time interval in the gti file, no need for mgtime, emrah
+	else
+	    mgtime ingtis=@dummy.gtis \
+		outgti=FS_${cluster}_merged.gti \
+		merge="OR" 
+	fi
+
+	let i=0
+	for fik in ${afiles[*]} ; do
+	    rm -f FS_${cluster}_${i}.gti
+	    let i+=1
+	done
+ 
+	rm -f dummy.gtis
+
+        # max length of gap to ignore in GTI File
+	maxgap=64
+
+        # Get START and STOP values from GTI-File
+	fdump infile= FS_${cluster}_merged.gti\
+	    outfile=temp.asc\
+	    columns="START STOP"\
+	    rows="-"\
+	    prhead=no \
+	    showcol=no \
+	    showunit=no \
+	    clobber=yes
+
+	cat > gtiselect.awk <<EOF
+BEGIN {
+    maxgap=$maxgap
+}
+NR==3 {
+    oldtstart=\$2
+    oldtstop=\$3
+}
+NR>3  {
+    newtstart=\$2
+    newtstop=\$3
+    if ( newtstart-oldtstop > maxgap )
+    {
+	print oldtstart " " oldtstop
+	oldtstart=newtstart
+    }
+    oldtstop=newtstop
+}
+END {
+    print oldtstart " " oldtstop
+}
+EOF
+
+	awk -f gtiselect.awk temp.asc > newgti.asc
+
+        #
+        # Create header for new FITS file from old GTI-file
+        #
+	fdump infile=FS_${cluster}_merged.gti+1 \
+	    outfile=headtmp.asc \
+	    columns="-"\
+	    rows="-"\
+	    prhead=yes \
+	    showcol=no \
+	    showunit=no \
+	    prdata=no \
+	    clobber=yes
+	
+	cat > headman.awk <<EOF
+{
+     keyword=\$1
+     noprint=0
+     if ( keyword == "XTENSION=" ) noprint=1
+     if ( keyword == "NAXIS" ) noprint=1
+     if ( keyword == "NAXIS1" ) noprint=1
+     if ( keyword == "NAXIS2" ) noprint=1
+     if ( keyword == "PCOUNT" ) noprint=1
+     if ( keyword == "GCOUNT" ) noprint=1
+     if ( keyword == "TFIELDS" ) noprint=1 
+     if ( keyword == "EXTNAME" ) noprint=1
+     if ( keyword == "BITPIX" ) noprint=1
+     if ( keyword == "END" ) noprint=1
+     if ( noprint == 0 ) print \$0
+}
+EOF
+	awk -f headman.awk  headtmp.asc > header.asc
+	rm -f headman.awk
+
+	cat >> header.asc <<EOF
+HISTORY   File modified to contain only data gaps longer than $maxgap
+HISTORY   seconds using code written by Joern Wilms (IAA Tuebingen)
+HISTORY   to avoid suspiciously short ELECTRON RATIO gaps.
+EOF
+
+        # Generate new FITS-file containing the data from newrow.asc
+	cat > newrow.desc <<EOF
+START 1D sec
+STOP 1D sec
+EOF
+   
+	fcreate cdfile=newrow.desc \
+	    datafile=newgti.asc \
+	    outfile=newgti.fits \
+	    headfile=header.asc \
+	    clobber=yes \
+	    extname=STDGTI 
+
+	mgtime ingtis="newgti.fits good_hexte.gti" \
+	    outgti=merged.gti \
+	    merge="AND"
+
+	mv merged.gti good_hexte.gti
+
+        # Clean up
+	rm -f temp.asc gtiselect.awk newgti.asc headtmp.asc header.asc
+	rm -f newrow.desc newgti.fits FS_${cluster}_merged.gti
+	punlearn fdump fcreate
+
+        #END OF smallgaps code
+
+        # end modifications by emrah
+	if [ ${userdata} = 1 ]; then
+	    cd ../hexte
+	else
+	    cd ../hexte_archive
+	fi
+    fi
+fi
+
+appendname=""
+if [ ${userdata} = 0 ]; then
+    appendname="_archive"
+fi
+
+
+#
+# Use user-gti-file?
+#
+
+if [ $usergti != "X" ]; then
+    cd ../filter
+
+    if [ -e ${usergti} ]; then 
+	echo ${achtung}
+	echo Using user supplied GTI file ${usergti}
+	echo ${achtung}
+    else
+	echo ${achtung}
+	echo ERROR
+	echo User supplied GTI file ${usergti} does not exist.
+	echo Did you happen to use softlinked directories\?
+	echo ${achtung}
+	exit 1
+    fi
+
+    #
+    # If standardgti=1, then merge usergti and standardgti, else
+    # just use the usergti
+    #
+
+    gtibase=`basename ${usergti} | sed s/\.gti$//`
+
+    if [ $standardgti -eq 1 ]; then
+	hxtgti=`basename ${gtifile} | sed s/\.gti$//`
+	newname=${gtibase}_AND_${hxtgti}
+	if [ -e ${newname}.gti ]; then
+	    echo "Skipping generation of ${newname}.gti"
+	else
+	    echo "Generating merged GTI-File ${newname}.gti"
+	    mgtime "ingtis=${gtibase}.gti,${hxtgti}.gti" outgti=${newname}.gti \
+		    merge=AND
+	    declare -a obsok
+	    obsok=(`fkeyprint ${newname}.gti NAXIS2 | \
+		    awk '/NAXIS2  =/ { print $3 }'`)
+
+	    if [ ${obsok} = '0' ]; then 
+		echo ${achtung}
+		echo ERROR
+		echo "No common time in usergti ${gtibase}.gti and"
+		echo "in common GTI ${hxtgti}.gti"
+		echo "   program stopped"
+		echo ${achtung}
+		rm -f ${newname}.gti
+		exit 1
+	    fi
+	fi
+	gtifile=../filter/${newname}.gti
+	appendname="_${newname}"
+    else
+	gtifile=../filter/${usergti}
+	appendname="_${gtibase}"
+    fi
+
+    if [ ${userdata} = 1 ]; then
+	cd ../hexte
+    else
+	cd ../hexte_archive
+    fi
+fi
+
+
+
+#
+# Extract source and background spectra
+#
+#
+
+if [ ${norock} = 0 ]; then
+    if [ ${separate} = 0 ]; then
+	modelist="src bkg"
+    else
+	modelist="src p m"
+    fi
+else
+    modelist="src"
+fi
+
+for mode in ${modelist[*]} ;do
+
+    echo *******************
+    echo EXTRACTING $mode
+    echo *******************
+    
+
+    basnam=hexte-${cluster}${appendname}_${mode}
+
+    declare -a files
+    files=(`cat ${obsid}_${mode}`)
+    gtiand=${gtifile}
+    hk16=${hkfile}
+
+    i=0
+    while [ $i != ${#files[*]} ]; do
+        if [ -e `basename ${files[i]}${appendname}.pha` -a -e `basename ${files[i]}${appendname}.lc` ]; then
+            echo ${files[i]}${appendname}.pha and ${files[i]}${appendname}.lc exist --- skipping
+        else
+	    #
+	    # Get data mode of these data
+	    #
+	    echo Extraction for ${files[i]}
+	    datamode=`fkeyprint infile=${files[i]}+1 keynam=DATAMODE exact=yes | \
+		    awk '/DATAMODE=/ { print $2}' | tr -d \' `
+	    echo Data have datamode ${datamode}
+
+	    # standard HEXTE mode is eventdata
+	    naidata=0
+	    event=1
+
+	    # science archive data
+	    if [ ${datamode} == "Archive" ]; then
+		naidata=0
+		event=0
+	    fi
+
+	    # used for Sco X-1
+	    if [ ${datamode} == "B_8s_256S_0_255_DF" ]; then
+		naidata=1
+		event=0
+	    fi
+
+	    if [ ${datamode} == "B_8s_256S_0_255_DH" ]; then
+		naidata=1
+		event=0
+	    fi
+
+	    #used for some GX 301 data
+	    if [ ${datamode} == "B_4s_256S_0_255_DH" ]; then
+		naidata=1
+		event=0
+	    fi
+
+
+            #
+            # Analysis of event data
+            #
+            if [ ${event} = 1 ]; then 
+                echo
+                echo Running seextrct on ${files[i]}
+                echo
+                seextrct infile=${files[i]} gtiorfile=APPLY \
+                    gtiandfile=${gtiand} outroot=${files[i]}${appendname} \
+                    timecol=TIME columns=Event binsz=${timres} \
+                    printmode=BOTH lcmode=RATE spmode=SUM \
+                    timemin=$timestart timemax=$timestop timeint=$timeintervals \
+                    chmin=INDEF chmax=INDEF chint=INDEF chbin=INDEF
+            fi
+ 
+            #
+            # Analysis of science archive data
+            #
+    	    if [ ${event} = 0 ]; then
+		if [ "${cluster}" = "a" ]; then 
+		    rm -f tmpcolumns
+		    if [ ${naidata} = 1 ]; then
+			cat >> tmpcolumns <<EOF
+NaISpecDet0
+NaISpecDet1
+NaISpecDet2
+NaISpecDet3
+EOF
+		    else
+			cat >> tmpcolumns <<EOF
+SpecDet0
+SpecDet1
+SpecDet2
+SpecDet3
+EOF
+		    fi
+		else
+		    if [ ${naidata} = 1 ]; then
+			cat >> tmpcolumns <<EOF
+NaISpecDet0
+NaISpecDet1
+NaISpecDet3
+EOF
+		    else
+		    rm -f tmpcolumns
+		    cat >> tmpcolumns <<EOF
+SpecDet0
+SpecDet1
+SpecDet3
+EOF
+		    fi
+		fi
+		echo
+		echo Running saextrct on ${files[i]}
+		echo
+		saextrct infile=${files[i]} gtiorfile=APPLY \
+		    gtiandfile=${gtiand} \
+		    outroot=${files[i]}${appendname} \
+		    accumulate="ONE" timecol="TIME" \
+		    columns=@tmpcolumns binsz=${timres} printmode="BOTH" \
+		    lcmode="RATE" spmode="SUM" \
+                    timemin=INDEF timemax=INDEF timeint=INDEF \
+		    chmin=INDEF chmax=INDEF \
+		    chint=INDEF chbin="INDEF" 
+		rm -f tmpcolumns
+	    fi
+	    
+	    # ... do not run hxtdead on non-existing spectra (caused by
+	    # ... GTI file)
+	    if [ -e ${files[i]}${appendname}.pha ]; then 
+		if [ ${userra} != "X" ]; then
+		    fparkey $userra ${files[i]}${appendname}.pha RA_OBJ
+		fi
+		if [ ${userdec} != "X" ]; then
+		    fparkey $userdec ${files[i]}${appendname}.pha DEC_OBJ
+		fi
+
+
+		if [ ${naidata} = 0 ]; then
+		    echo
+		    echo Running hxtdead on ${files[i]}${appendname}
+		    echo
+		    if [ ${cluster} = "a" ]; then
+			hxtdead calvalf=${calib} engvalf=${hk16} \
+			    eventarcf=${files[i]} detectors="0123" \
+			    phalcf=${files[i]}${appendname}.pha chatter=3
+			
+			hxtdead calvalf=${calib} engvalf=${hk16} \
+			    eventarcf=${files[i]} detectors="0123" \
+			    phalcf=${files[i]}${appendname}.lc chatter=3
+		    fi
+		    if [ ${cluster} = "b" ]; then
+			hxtdead calvalf=${calib} engvalf=${hk16} \
+			    eventarcf=${files[i]} detectors=${pwbdet} \
+			    phalcf=${files[i]}${appendname}.pha chatter=3
+
+			hxtdead calvalf=${calib} engvalf=${hk16} \
+			    eventarcf=${files[i]} detectors=${pwbdet} \
+			    phalcf=${files[i]}${appendname}.lc chatter=3
+		    fi
+		else
+		    echo
+		    echo Nonstandard data mode: CANNOT RUN hxtdead. 
+		    echo PROCEED WITH EXTREME CAUTION
+		    echo
+		    if [ ${cluster} = "a" ]; then
+			echo Setting DETNAM manually to PWA
+			fparkey PWA ${files[i]}${appendname}.pha DETNAM add=yes
+		    fi
+		    if [ ${cluster} = "b" ]; then
+			echo Setting DETNAM manually to PWB${pwbdet}
+			fparkey PWB${pwbdet} ${files[i]}${appendname}.pha DETNAM add=yes
+		    fi
+		fi
+	    fi
+	fi
+	let i+=1
+    done
+
+    if [ -e ${basnam}.pha ]; then
+	echo ${basnam}.pha already exists - skipping
+    else
+	echo
+	echo Running sumpha to create ${basnam}.pha
+	echo
+	echo "files:"
+	echo ${files[*]}
+ #
+	echo "appendname:"
+	echo ${appendname}
+ #
+
+	sumfiles=""
+	numadd=0
+	for fifi in ${files[*]}; do
+	    if [ -e ${fifi}${appendname}.pha ]; then
+		sumfiles="$sumfiles ${fifi}${appendname}.pha"
+		let numadd=$numadd+1
+	    fi
+	done
+
+	# only add if there is something to be added...
+
+	if [ $numadd -eq 0 ]; then 
+	    echo "NO PHA-FILES TO BE ADDED - CHECK YOUR GTI FILE"
+	else
+	    echo "ADDING files: " ${sumfiles[*]}
+	    ${XTETOOLS}/phaadd --nouseback --nouseresp $basnam ${sumfiles[*]}
+
+#
+	    fparkey 1. ${basnam}.pha BACKSCAL
+	    fparkey 0. ${basnam}.pha CORRSCAL
+	    if [ ${norock} = 0 ]; then 
+		if [ ${separate} = 0 ]; then 
+		    fparkey hexte-${cluster}${appendname}_bkg.pha ${basnam}.pha BACKFILE
+		    fparkey hexte-${cluster}${appendname}_bkg.pha ${basnam}.pha CORRFILE
+		else
+		    fparkey hexte-${cluster}${appendname}_bkgpm.pha ${basnam}.pha BACKFILE
+		    fparkey hexte-${cluster}${appendname}_bkgpm.pha ${basnam}.pha CORRFILE
+		fi
+	    else
+		fparkey none ${basnam}.pha BACKFILE
+		fparkey none ${basnam}.pha CORRFILE
+	    fi
+
+	    hxtrsp -i ${basnam}.pha -a $filterfile
+#	    hxtrsp -i ${basnam}.pha -a NONE
+	fi
+    fi
+
+    if [ -e ${basnam}.lc ]; then
+	echo ${basnam}.lc already exists - skipping
+    else
+	echo
+	echo Combining the lightcurves to ${basnam}.lc
+	echo
+	i=0
+	lcexpr=""
+	rm -f dummyfile
+	numadd=0
+	for file in ${files[*]}; do
+	    if [ -e ${file}${appendname}.lc ]; then 
+		echo ${file}${appendname}.lc >> dummyfile
+		let numadd=$numadd+1
+	    fi
+	done
+
+	# IK: DEADC column is needed by IKfasebin for proper deadtime 
+	# correction of phaseresolved spectra
+
+	if [ $numadd -eq 0 ]; then
+	    echo "NO FILES TO BE ADDED TO LIGHTCURVE - CHECK YOUR GTI-FILE!"
+	else
+	    if [ ${naidata} = 0 ]; then
+		columns="TIME RATE ERROR FRACEXP DEADC"
+	    else
+		columns="TIME RATE ERROR FRACEXP"
+	    fi
+	    fmerge @dummyfile ${basnam}.lc "$columns"
+	    rm -f dummyfile
+	fi
+    fi
+done # mode in modelist
+
+if [ ${separate} = 1 -a ${norock} = 0 ]; then
+    echo
+    echo Combining backgrounds from different cluster positions
+    echo
+
+    dumfil="X"
+    dum1nam="X"
+    dum2nam="X"
+    bothadd=0
+    if [ -e hexte-${cluster}${appendname}_m.pha ]; then
+	dum1nam=dumm$$
+	ln -s hexte-${cluster}${appendname}_m.pha ${dum1nam}
+	dumfil=hexte-${cluster}${appendname}_m.pha
+	let bothadd=$bothadd+1
+    fi
+
+    if [ -e hexte-${cluster}${appendname}_p.pha ]; then
+	dum2nam=dump$$
+	ln -s hexte-${cluster}${appendname}_p.pha ${dum2nam}
+	dumfil=hexte-${cluster}${appendname}_p.pha
+	let bothadd=$bothadd+1
+    fi
+
+    backnam=hexte-${cluster}${appendname}_bkgpm.pha
+    if [ $bothadd -eq 2 ]; then 
+	#... everything went fine
+
+	phaexpr="${dum1nam}+${dum2nam}"
+
+	mathpha \
+	    expr="${phaexpr}" \
+	    units="C" \
+	    outfil=\!${backnam} \
+	    exposure=CALC \
+	    areascal=NULL \
+	    ncomments=0 \
+	    properr='yes' \
+	    errmeth='POISS-0'
+
+	fparkey 1. ${backnam} BACKSCAL
+	fparkey 0. ${backnam} CORRSCAL
+
+    else
+	#... extraction of one or both backgrounds did not work out
+
+	if [ $dumfil = "X" ]; then
+	    echo ERROR
+	    echo "Background extraction failed. Program aborted"
+	    exit 1
+	fi
+
+	echo "WARNING"
+	echo "$dumfil is only background generated."
+	echo "copying $dumfil to $backnam"
+
+	cp $dumfil ${backnam}
+    fi
+
+    if [ -e $dum1nam ]; then 
+	rm -f $dum1nam 
+    fi
+
+    if [ -e $dum2nam ]; then
+	rm -f $dum2nam
+    fi
+
+
+fi
+
+#
+#..barycentrization (D.K.)
+#
+if  [ ${bary} -eq 1 ]; then
+    echo ${achtung}
+    echo Barycentering lightcurve
+    echo ${achtung}
+    
+    if [ -d ${fullpath}/orbit ]; then
+	echo ${fullpath}/orbit/* > orbit.txt
+    else
+	echo ERROR
+	echo "Directory ${fullpath}/orbit not present."
+	echo "Cannot barycenter."
+	echo "Program aborted."
+	exit 1
+    fi
+    
+    for basnam in hexte-a_src hexte-a_m hexte-a_p \
+	          hexte-b_src hexte-b_m hexte-b_p
+    do
+	if [ -e ${basnam}.lc ]; then
+	    if [ -e ${basnam}_bary.lc ]; then
+		echo ${achtung}
+		echo ${basnam}_bary.lc already exists - skipping
+		echo ${achtung}
+	    else 
+		faxbary infile=${basnam}.lc \
+		        outfile=${basnam}_bary.lc \
+		        orbitfiles=@orbit.txt \
+		        barytime=yes \
+		        clobber=yes
+	    fi
+	fi
+    done
+fi #..barycentrization done
+
+
+# IK: Creating gti file for ikfasebin: contains rocking & good times
+
+echo Generating allgti-files for ikfasebin
+echo
+
+find . -name "ttt*.gti" -exec rm -f {} \;
+
+declare -a sfiles
+if [ ${norock} = 0 ]; then 
+    declare -a bfiles
+fi
+
+if [ ${cluster} = a ]; then
+    if [ ${userdata} = 1 ]; then 
+	sfiles=(`find . -name "FS50_*src*.pha" -print`)
+    else
+	sfiles=(`find . -name "FS52_*src*.pha" -print`)
+    fi
+fi
+
+if [ ${cluster} = b ]; then
+    if [ ${userdata} = 1 ]; then
+	sfiles=(`find . -name "FS56_*src*.pha" -print`)
+    else
+	sfiles=(`find . -name "FS58_*src*.pha" -print`)
+    fi
+fi
+
+if [ ${norock} = 0 ]; then
+    if [ ${cluster} = a ]; then
+	if [ ${userdata} = 1 ]; then 
+	    bfiles=(`find . -name "FS50_*_[b-p]*.pha" -print`)
+	else
+	    bfiles=(`find . -name "FS52_*_[b-p]*.pha" -print`)
+	fi
+    fi
+
+    if [ ${cluster} = b ]; then
+	if [ ${userdata} = 1 ]; then
+	    bfiles=(`find . -name "FS56_*_[b-p]*.pha" -print`)
+	else
+	    bfiles=(`find . -name "FS58_*_[b-p]*.pha" -print`)
+	fi
+    fi
+fi
+
+
+nfiles=${#sfiles[*]}
+if [ ${nfiles} = 0 ]; then
+    echo ERROR
+    echo Error generating allgti, no source files found!!
+    exit 1
+fi
+
+i=0
+echo Generating hexte_all${appendname}-${cluster}_src.gti
+while [ ${i} != ${nfiles} ]
+    do
+    echo Merging GTI-Extension from ${sfiles[${i}]}
+    fextract infile=${sfiles[${i}]}[2] outfile=ttt${i}.gti clobber=yes
+    if [ ${i} = 0 ]; then
+	mv ttt${i}.gti ttt.gti
+    else
+	mgtime ingtis="ttt${i}.gti ttt.gti" outgti=tttt.gti merge="OR"
+	mv tttt.gti ttt.gti
+    fi
+    let i+=1
+done
+mgtime ingtis="ttt.gti ${gtifile}" outgti=tttt.gti merge="AND"
+mv tttt.gti ../filter/hexte_all${appendname}-${cluster}_src.gti
+find . -name "ttt*.gti" -exec rm -f  {} \;
+
+if [ ${norock} = 0 ]; then 
+    nfiles=${#bfiles[*]}
+    if [ ${nfiles} = 0 ]; then
+	echo ERROR
+	echo Error generating allgti.
+	exit 1
+    fi
+
+    i=0
+    echo
+    echo Generating hexte_all${appendname}-${cluster}_bkg.gti
+
+    while [ ${i} != ${nfiles} ]
+      do
+      echo Merging GTI-Extension from ${bfiles[${i}]}
+      fextract infile=${bfiles[${i}]}[2] outfile=ttt${i}.gti clobber=yes
+      if [ ${i} = 0 ]; then
+	  mv ttt${i}.gti ttt.gti
+      else
+	  mgtime ingtis="ttt${i}.gti ttt.gti" outgti=tttt.gti merge="OR"
+	  mv tttt.gti ttt.gti
+      fi
+      let i+=1
+    done
+    mgtime ingtis="ttt.gti ${gtifile}" outgti=tttt.gti merge="AND"
+    mv tttt.gti ../filter/hexte_all${appendname}-${cluster}_bkg.gti
+    find . -name "ttt*.gti" -exec rm -f {} \;
+fi
+
+
+exit 0

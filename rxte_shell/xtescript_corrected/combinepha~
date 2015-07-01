@@ -1,0 +1,1052 @@
+#!/bin/bash
+
+#
+# Combine HEXTE and PCA Standard2f mode spectra in subdirectory $1/spectrum
+# Spectra starting with "standard2f" from all following arguments are used.
+#
+# JW, Summer 1998, wilms@astro.uni-tuebingen.de
+#
+# Version 1.1, May 1999, JW: 
+#     RMF weighing now based on background subtracted spectra, combining
+#     works for spectra where not all detectors were on.
+#
+# Version 1.2, 1999/06/07, JW:
+#     Special logic for -top and -exclusive keywords of pca_standard:
+#     added the same keywords here: -top adds top-layer data only.
+#
+# Version 1.3, 1999/08/02, JW:
+#     New grouping strategy for HEXTE: Only group if desired (using the
+#     group keyword), and then group to a minimum number of counts in the 
+#     spectrum (default: 100). 
+#     New Keyword -nosyst if systematical errors are not to be applied
+#
+# Version 1.4, 1999/08/08, JW:
+#     copy certain keywords to avoid mathpha bug.
+#
+# Version 1.5, 1999/09/28, IK
+#     removed bug - individual directories can be processed
+#     added minimal help if no arguments are given
+#     changed grouping factor to 10000 instead of 100 (background!!)
+#
+# Version 1.6, 1999/09/30, IK
+#     removed bug: response weighting no longer crashes, if number of
+#     photons exceed 1E+08!
+#
+# Version 1.7, 1999/11/08, IK
+#     changed hard coded hexte-response soft links to ${HEXTERESP}
+#
+# Version 1.9, 1999/11/16, JW
+#     copy also TSTART, TSTOP, MJDREFI, MJDREFF keywords
+#
+# Version 1.10, 2000/03/03, JW
+#     copy also CPIX, RA_OBJ, DEC_OBJ keywords
+#
+# Version 1.11  2000/03/16, MK
+#     added keyword -gtiname, changed ig to ignore in xspec loadfiles
+#
+# Version 1.12, 2000/04/05, JW
+#      copying the keywords now also works for southern declinations
+#
+# Version 1.13, 2000/04/11, JW
+#      group option now allows to give the number of photons per bin
+#      changed -gtiname argument again, now behavior is consistent
+#        with hexte_standard behavior
+#      new systematics as determined for the heatools 5.0 matrices,
+#        the old systematics can be obtained with -oldsyst
+#      added -epoch3 and -epoch4 keywords for the systematics
+# Version 1.14, 2000/04/12, JW
+#      added -pcagroup and -hextegroup keywords
+# Version 1.15, 2000/11/30, JW/KP
+#      added treatment of full backgrounds, new keywords -1off etc to only
+#      combine spectra where these detectors were off, now uses the 
+#      UCSD sumpha script instead of the addspectra function.
+#
+# Version 1.16, 2001/07/16, SB
+#      added -nopcu0 keyword (see pcaextract for a description)
+#
+# Version 1.17, 2001/09/20, IK
+#      replaced sumpha with local_sumpha; now ${sumpha} instead of 
+#      hardcoded path
+#
+# CVS Version 1.13, 2002/07/24, JW
+#      changed name of sumpha to addpha because our sumpha-script has
+#      been renamed
+#
+# CVS Version 1.15, 2002/07/31, IK
+#      added -addclusters switch: the spectra of both HEXTE clusters 
+#      are added, incl. background, .arf and .rmf files. 
+#      Weighting of the response matrices is done by number of photons
+#
+# SWITCHED OVER TO LOGGING VIA CVS. PLEASE DO NOT EDIT THE FOLLOWING LINES
+# BY HAND!
+#
+# $Log: combinepha,v $
+# Revision 1.29  2007-03-03 14:50:43  wilms
+# better error handling for missing HEXTE extractions
+#
+# Revision 1.28  2007/02/27 20:28:24  wilms
+# added check for presence of PCA files
+#
+# Revision 1.27  2007/02/26 14:39:43  wilms
+# set PCA correctionfile to pca background to make RER happy
+#
+# Revision 1.26  2006/01/30 22:54:42  wilms
+# both HEXTE clusters now get even weight when adding responses. The
+# previous version of combinepha was wrong.
+#
+# Revision 1.25  2005/05/03 12:12:05  katja
+# hexte b now gets correct response (combined clusters were correct before)
+#
+# Revision 1.24  2004/12/03 14:01:49  kreyken
+# Changed setting the hexte response file to the generated files
+# hexte-a/b_src.rmf instead of using the globally installed ones.
+#
+# Revision 1.23  2004/05/18 16:39:24  slawo
+# changes such that the nopca keyword works as advertised (JW/SSuchy)
+#
+# Revision 1.22  2004/04/07 18:34:04  wilms
+# further bash changes
+#
+# Revision 1.21  2004/04/07 17:44:57  wilms
+# switch over to bash
+#
+# Revision 1.20  2004/01/16 18:12:10  kreyken
+# Photon number calculation might result in negative values for some
+# files. When calculating the weighting for the response matrix, this
+# results in "0-.xxx" as weight, which of course can not be digested by
+# addrmf.
+# These cases are now detected, the number of photons is set to zero and
+# a warning is printed.
+#
+# Revision 1.19  2003/09/29 16:42:12  kreyken
+# Changed Weighting when adding hexte rmf/arf files from
+# photo based weighting to fixed 0.5:0.375 ratio.
+# This should always give a constant around 0.9 thus resulting in more
+# reliable fluxes
+#
+# Revision 1.18  2002/12/18 16:43:14  gleiss
+# I (JW) am stupid. should remove my test output and exit commands before
+# checking in the code...
+#
+# Revision 1.17  2002/12/18 16:13:11  gleiss
+# ensure that toplayer spectra are only softlinked if the -top argument
+# is given, furthermore, if -top is NOT given, then toplayer spectra
+# are NOT taken into account.
+#
+# Revision 1.16  2002/12/06 17:43:51  wilms
+# added -topdir argument. The code now gives a warning if
+# pcabackest_full exists and if there exists no full background spectrum
+# corresponding to the standard2f spectrum (this can happen, e.g., if
+# both all pca and toplayer only extractions exist, but if the -full
+# keyword had only been given in the "all pca" case).
+#
+#
+#
+
+#
+# Process arguments
+#
+
+if [ ${#*} = 0 ]; then 
+    echo
+    echo Syntax: $0 directory/ies \[optional arguments\]
+    echo where 
+    echo directories are the directories to be processed
+    echo optional arguments:
+    echo -top: assume top-layer only for the PCA
+    echo -exclusive: see pca_standard
+    echo -nohexte: only work on the PCA
+    echo -nopca: only work on HEXTE
+    echo -nopcu0: 
+    echo -pm: HEXTE background is for plus and minus positions
+    echo -nosyst: do NOT add systematics
+    echo "-oldsyst: use OLD wilms et al. (1999) systematics"
+    echo -epoch4: PCA systematics for epoch 4 data
+    echo "-epoch3: PCA systematics for epoch 3 data (default)"
+    echo -group=num: group to num counts per bin, if num not
+    echo "    " given use 10000
+    echo -pcagroup=num
+    echo -hextegroup=num: group pca and hexte to num counts per bin
+    echo "    " NOTE: no DEFAULT num used here
+    echo -gtiname: gti name used for HEXTE extraction, without
+    echo "    " path or .gti extension
+    echo -addclusters: add both HEXTE clusters
+    echo -archive: use hexte_archive directory for the archive extraction
+    echo
+    exit 0
+fi
+
+# used scripts
+
+sumpha=${XTETOOLS}/phaadd
+
+# Default values
+obsname=""
+observations=""
+check=0
+numobs=0
+toplayer=0
+exclusive=0
+nopcu0=0
+bkgpm=0
+addhexte=1
+addpca=1
+pcagroup=0
+hextegroup=0
+syst=1
+gtiext=""
+epoch3=0
+epoch4=1
+oldsyst=0
+addclusters=0
+topdir=0
+archive=0
+
+declare -a detectors
+detectors=(1 1 1 1 1)
+
+for argument in $*; do
+    found=0
+
+    #
+    # Optional arguments for detectors
+    #
+    if [ ${argument} = "-all" ]; then
+	found=1
+    fi
+    if [ ${argument} = "-0off" ]; then
+	detectors[0]=0
+	found=1
+    fi
+    if [ ${argument} = "-1off" ]; then
+	detectors[1]=0
+	found=1
+    fi
+    if [ ${argument} = "-2off" ]; then
+	detectors[2]=0
+	found=1
+    fi
+    if [ ${argument} = "-3off" ]; then
+	detectors[3]=0
+	found=1
+    fi
+    if [ ${argument} = "-4off" ]; then
+	detectors[4]=0
+	found=1
+    fi
+
+    if [ ${argument} = "-top" ]; then
+	toplayer=1
+	found=1
+    fi
+
+    if [ ${argument} = "-topdir" ]; then
+	topdir=1
+	found=1
+    fi
+
+    if [ ${argument} = "-nopcu0" ]; then
+	nopcu0=1
+	found=1
+    fi
+
+    if [ ${argument} = "-exclusive" ]; then
+	exclusive=1
+	found=1
+    fi
+
+    if [ ${argument} = "-nohexte" ]; then
+	addhexte=0
+	found=1
+    fi
+
+    if [ ${argument} = "-nopca" ]; then
+	addpca=0
+	found=1
+    fi
+
+    if [ ${argument} = "-addclusters" ]; then
+	addclusters=1
+	found=1
+    fi
+
+    if [ ${argument} = "-pm" ]; then
+	bkgpm=1
+	found=1
+    fi
+
+    if [ ${argument} = "-nosyst" ]; then
+	syst=0
+	found=1
+    fi
+
+    if [ ${argument} = "-archive" ]; then
+	archive=1
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch3" ]; then
+	epoch3=1
+	epoch4=0
+	found=1
+    fi
+
+    if [ ${argument} = "-epoch4" ]; then
+	epoch3=0
+	epoch4=1
+	found=1
+    fi
+
+    if [ ${argument} = "-oldsyst" ]; then
+	oldsyst=1
+	found=1
+    fi
+
+    if [ ${argument} = "-group" ]; then
+	pcagroup=${argument#-group=}
+	hextegroup=${pcagroup}
+	if [ X${group} = "X" ]; then
+	    pcagroup=10000
+	    hextegroup=10000
+        fi
+	found=1
+    fi
+
+    if [ ${argument#-pcagroup=} != ${argument} ]; then
+	pcagroup=${argument#-pcagroup=}
+	found=1
+    fi
+
+    if [ ${argument#-hextegroup=} != ${argument} ]; then
+	hextegroup=${argument#-hextegroup=}
+	found=1
+    fi
+
+    if [ ${argument#-gtiname=} != ${argument} ]; then
+	gtifile=${argument#-gtiname=}
+	gtiext="_"${gtifile}
+	found=1
+    fi
+
+    if [ ${found} = 0 ]; then
+	if [ X${obsname} = X ]; then
+	    obsname=${argument}
+	else
+	    observations="${observations} ${argument}"
+	    check=1
+	fi
+    fi
+done
+
+#
+# Exit if topdir is given, but -top not
+#
+
+if [ ${topdir} = 1 -a ${toplayer} = 0 ]; then
+    echo ERROR
+    echo "Argument -topdir can only be used if -top is set as well"
+    exit 1
+fi
+
+
+#
+# If only one directory given: work in that subdir
+#
+if [ ${check} = 0 ]; then
+    observations=${obsname}
+fi
+
+
+#
+# Names for the resulting spectra
+# see below for PCA
+#
+fullbackname="fullback"
+hexteaname="hxta"
+hexteabackname="hxtaback"
+hextebname="hxtb"
+hextebbackname="hxtbback"
+hextepresent=0
+
+# HEXTE: no response generator: just softlink fixed matrices
+#hxtresppath=${HEXTERESP}
+#hxtamatrix=hexte_97mar20c_pwa
+#hxtbmatrix=hexte_97mar20c_pwb013
+
+if [ ! -e ${obsname} ]; then
+    echo Creating subdir ${obsname}
+    mkdir ${obsname}
+fi
+
+if [ -e ${obsname}/spectrum ]; then
+    echo WARNING:  ${obsname}/spectrum EXISTS
+    echo PROCEED WITH FINGERS CROSSED
+fi
+
+if [ ${topdir} = 1 ]; then
+    if [ -e ${obsname}/spectrum_top ]; then
+	echo WARNING:  ${obsname}/spectrum_top EXISTS
+	echo PROCEED WITH FINGERS CROSSED
+    fi
+fi
+
+
+# Find all standard2f spectra in the subdirectories
+
+#
+# Name for PCA standard2f data
+#
+standard="standard2f*"
+
+# Are we only using one detector combination?
+detcomb=""
+for det in 0 1 2 3 4; do
+    if [ ${detectors[$det]} -eq 0 ]; then 
+	detcomb="${detcomb}${det}"
+    fi
+done
+
+if [ X${detcomb} != "X" ]; then
+    detcomb="_${detcomb}off"
+    standard=${standard}${detcomb}
+fi
+
+# Extracted with exclusive?
+if [ ${exclusive} = 1 ]; then
+    standard=${standard}_excl
+fi
+
+# Extracted with nopcu0?
+if [ ${nopcu0} = 1 ]; then
+    standard=${standard}_ign0
+fi
+
+# Extracted only top layer?
+if [ ${toplayer} = 1 ]; then
+    standard=${standard}_top
+    filtercmd="cat -"
+else
+    filtercmd="grep -v top"
+fi
+
+# Names for the combined files (NO .pha AT THE END (uses sumpha))
+pcaname="pca${detcomb}"
+pcabackname="pcaback${detcomb}"
+pcarespname="pcaresp${detcomb}.rmf"
+
+allstd=`find ${observations} -name "${standard}*.pha" | grep -v back | grep -v spectrum | ${filtercmd}`
+
+if [ ${topdir} = 1 ]; then
+    echo Creating ${obsname}/spectrum_top
+    mkdir ${obsname}/spectrum_top
+    cd ${obsname}/spectrum_top
+else
+    echo Creating ${obsname}/spectrum
+    mkdir ${obsname}/spectrum
+    cd ${obsname}/spectrum
+fi
+
+echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+echo COLLECTING OBSERVATIONS
+echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# 
+# Multiple observations: loop over observations and softlink data
+#
+pcaadd=""
+pcabkgadd=""
+fullbkgadd=""
+fullpresent="0"
+pcarspadd=""
+photons=""
+comma=""
+i=0
+for std in ${allstd}; do
+    echo Softlinking PCA observation ${std}
+
+    obsdir=`dirname ../../${std}`
+
+    thispha=pca${detcomb}_${i}.pha
+    thisbkg=bkg${detcomb}_${i}.pha
+    thisful=ful${detcomb}_${i}.pha
+    thisrmf=resp${detcomb}_${i}.rmf
+
+    # PCA
+    ln -f -s ../../${std} ./${thispha}
+
+    # ... background
+    backname=`fkeyprint ./${thispha}+1 BACKFILE | grep "BACKFILE=" | \
+      	    awk '{print $2}' | tr -d \'`
+
+    ln -f -s ${obsdir}/${backname} ./${thisbkg}
+
+    if [ -e ${obsdir}/../pcabackest_full ]; then
+	fullback=`echo ${backname} | sed s/\.pha/\_full\.pha/`
+	# Check whether full background is present
+	if [ -e ${obsdir}/../pcabackest_full/${fullback} ]; then
+	    ln -f -s ${obsdir}/../pcabackest_full/${fullback} ./${thisful}
+	    fullbkgadd=${fullbkgadd}" "${thisful}
+	    fullpresent=1
+	else
+	    echo "WARNING: pcabackest_full directory is present"
+	    echo "but background spectrum ${fullback} is not."
+	    echo "Check whether you need the full backgrounds for"
+	    echo "this extraction. Typically they are NOT needed"
+	    echo "when combining top-layer data."
+	fi
+    fi
+
+    # ... number of photons in spectrum (for RMF weighting)
+
+    # IK:
+    # sed converts E+0 to *10^ (E+0 is misinterpreted by bc, which
+    # leads to problems/crashes
+    #
+    photnum=`fstatistic ./${thispha} COUNTS - | grep sum | \
+       	    awk '{print $NF}' | sed "s/E+/*10^/g"`
+    baknum=`fstatistic ./${thisbkg} COUNTS - | grep sum | \
+	    awk '{print $NF}' | sed "s/E+/*10^/g"`
+    tmpphot=`echo ${photnum}-${baknum} | bc -l`
+    totphot=`echo "${tmpphot}*(${tmpphot} > 0)" | bc`
+
+    if [ $totphot = "0" ]; then
+	echo "WARNING: file has zero or negative count rate!"
+	echo "         Using 0.0 weighting for response matrix, but spectrum"
+	echo "         and background will be added anyway!"
+	echo "         If you don't want this, remove this file."
+	echo
+    fi
+
+    photons=${photons}" "${totphot}
+
+    # ... response
+    respname=`fkeyprint ./${thispha}+1 RESPFILE | grep "RESPFILE=" | \
+		    awk '{print $2}' | tr -d \'`
+    ln -f -s ${obsdir}/${respname} ./${thisrmf}
+
+    pcaadd=${pcaadd}" ${thispha}"
+    pcabkgadd=${pcabkgadd}" ${thisbkg}"
+    pcarspadd=${pcarspadd}${comma}${thisrmf}
+
+    # be nice to addrmf's stupid syntax
+    comma=","
+    let i+=1
+done
+
+needpcaadd=1
+if [ ${i} = 1 ]; then
+    needpcaadd=0
+fi
+
+if [ $addpca = 1 ]; then
+    if [ ${i} = 0 ]; then
+	echo ERROR
+	echo NO PCA FILES FOUND
+	echo not performing addition
+	exit 1
+    fi
+fi
+
+
+#
+# HEXTE is easier: no separate modes so far...
+#
+
+hxaadd=""
+hxabkgadd=""
+hxbadd=""
+hxbbkgadd=""
+i=0
+nohextea=0
+nohexteb=0
+
+if [ ${archive} = 1 ]; then
+ for observation in ${observations}; do
+    # remember one subdir for softlinking the HEXTE matrices
+    # (really bad hack)
+    remdir=${observation}
+
+    obslink=../../${observation}
+    if [ ${addhexte} = 1 -a -d ${obslink}/hexte_archive ]; then 
+
+	echo Softlinking HEXTE observations in ${obslink}/hexte_archive/ 
+	hextepresent=1
+
+	# HEXTE A
+	if [ -e ${obslink}/hexte_archive/hexte-a_archive_${gtiext}src.pha ]; then
+	    ln -f -s ${obslink}/hexte_archive/hexte-a_archive_${gtiext}src.pha	./hextea_src${i}.pha
+	else
+	    echo ERROR
+	    echo File does not exist: ${obslink}/hexte_archive/hexte-a_archive${gtiext}_src.pha
+	    echo CORRUPT EXTRACTION
+	    nohextea=1
+	    exit 1
+	fi
+	backname=`fkeyprint ./hextea_src${i}.pha+1 BACKFILE | \
+	    grep "BACKFILE=" | awk '{print $2}' | tr -d \'`
+	hxaadd=${hxaadd}" hextea_src${i}.pha"
+	if [ ${bkgpm} = 0 ]; then
+	    if [ -e ${obslink}/hexte_archive/${backname} ]; then
+		ln -f -s ${obslink}/hexte_archive/${backname} ./hextea_bkg${i}.pha
+		hxabkgadd=${hxabkgadd}" hextea_bkg${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte_archive/${backname}
+		echo DO you need the \-pm flag\?
+		nohextea=1
+		#exit
+	    fi
+	else
+	    if [ -e  ${obslink}/hexte_archive/${backname} ]; then
+		ln -f -s ${obslink}/hexte_archive/${backname} ./hextea_bkgpm${i}.pha
+		hxabkgadd=${hxabkgadd}" hextea_bkgpm${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte_archive/${backname}
+		echo CORRUPT EXTRACTION for HEXTE A
+		nohextea=1
+		#exit 1
+	    fi
+	fi
+
+	# HEXTE B
+	if [ -e ${obslink}/hexte_archive/hexte-b_archive${gtiext}_src.pha ]; then
+	    ln -f -s ${obslink}/hexte_archive/hexte-b_archive${gtiext}_src.pha	./hexteb_src${i}.pha
+	else
+	    echo FILE DOES NOT EXIST: ${obslink}/hexte_archive/hexte-b_archive${gtiext}_src.pha
+	    echo CORRUPT EXTRACTION for HEXTE B
+	    nohexteb=1
+	    exit 1
+	fi
+
+	backname=`fkeyprint ./hexteb_src${i}.pha+1 BACKFILE | \
+	    grep "BACKFILE=" | awk '{print $2}' | tr -d \'`
+	hxbadd=${hxbadd}" hexteb_src${i}.pha"
+	if [ ${bkgpm} = 0 ]; then
+	    if [ -e ${obslink}/hexte_archive/${backname} ]; then
+		ln -f -s ${obslink}/hexte_archive/${backname} ./hexteb_bkg${i}.pha
+		hxbbkgadd=${hxbbkgadd}" hexteb_bkg${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte_archive/${backname}
+		echo DO you need the \-pm flag\?
+		nohexteb=1
+		exit
+	    fi
+	else
+	    if [ -e ${obslink}/hexte_archive/${backname} ]; then
+		ln -f -s ${obslink}/hexte_archive/${backname} ./hexteb_bkgpm${i}.pha
+		hxbbkgadd=${hxbbkgadd}" hexteb_bkgpm${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte_archive/${backname}
+		echo CORRUPT EXTRACTION
+		nohexteb=1
+		exit 1
+	    fi
+	fi
+    fi
+    let i+=1
+done
+else
+ for observation in ${observations}; do
+    # remember one subdir for softlinking the HEXTE matrices
+    # (really bad hack)
+    remdir=${observation}
+
+    obslink=../../${observation}
+    if [ ${addhexte} = 1 -a -d ${obslink}/hexte ]; then 
+
+	echo Softlinking HEXTE observations in ${obslink}/hexte/ 
+	hextepresent=1
+
+	# HEXTE A
+	if [ -e ${obslink}/hexte/hexte-a${gtiext}_src.pha ]; then
+	    ln -f -s ${obslink}/hexte/hexte-a${gtiext}_src.pha	./hextea_src${i}.pha
+	else
+	    echo ERROR
+	    echo File does not exist: ${obslink}/hexte/hexte-a${gtiext}_src.pha
+	    echo CORRUPT EXTRACTION
+	    nohextea=1
+	    exit 1
+	fi
+
+	backname=`fkeyprint ./hextea_src${i}.pha+1 BACKFILE | \
+	    grep "BACKFILE=" | awk '{print $2}' | tr -d \'`
+	hxaadd=${hxaadd}" hextea_src${i}.pha"
+	if [ ${bkgpm} = 0 ]; then
+	    if [ -e ${obslink}/hexte/${backname} ]; then
+		ln -f -s ${obslink}/hexte/${backname} ./hextea_bkg${i}.pha
+		hxabkgadd=${hxabkgadd}" hextea_bkg${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte/${backname}
+		echo DO you need the \-pm flag\?
+		nohextea=1
+		#exit
+	    fi
+	else
+	    if [ -e  ${obslink}/hexte/${backname} ]; then
+		ln -f -s ${obslink}/hexte/${backname} ./hextea_bkgpm${i}.pha
+		hxabkgadd=${hxabkgadd}" hextea_bkgpm${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte/${backname}
+		echo CORRUPT EXTRACTION for HEXTE A
+		nohextea=1
+		#exit 1
+	    fi
+	fi
+
+	# HEXTE B
+	if [ -e ${obslink}/hexte/hexte-b${gtiext}_src.pha ]; then
+	    ln -f -s ${obslink}/hexte/hexte-b${gtiext}_src.pha	./hexteb_src${i}.pha
+	else
+	    echo FILE DOES NOT EXIST: ${obslink}/hexte/hexte-b${gtiext}_src.pha
+	    echo CORRUPT EXTRACTION for HEXTE B
+	    nohexteb=1
+	    exit 1
+	fi
+
+	backname=`fkeyprint ./hexteb_src${i}.pha+1 BACKFILE | \
+	    grep "BACKFILE=" | awk '{print $2}' | tr -d \'`
+	hxbadd=${hxbadd}" hexteb_src${i}.pha"
+	if [ ${bkgpm} = 0 ]; then
+	    if [ -e ${obslink}/hexte/${backname} ]; then
+		ln -f -s ${obslink}/hexte/${backname} ./hexteb_bkg${i}.pha
+		hxbbkgadd=${hxbbkgadd}" hexteb_bkg${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte/${backname}
+		echo DO you need the \-pm flag\?
+		nohexteb=1
+		exit
+	    fi
+	else
+	    if [ -e ${obslink}/hexte/${backname} ]; then
+		ln -f -s ${obslink}/hexte/${backname} ./hexteb_bkgpm${i}.pha
+		hxbbkgadd=${hxbbkgadd}" hexteb_bkgpm${i}.pha"
+	    else
+		echo FILE DOES NOT EXIST: ${obslink}/hexte/${backname}
+		echo CORRUPT EXTRACTION
+		nohexteb=1
+		exit 1
+	    fi
+	fi
+    fi
+    let i+=1
+done
+fi
+
+
+#
+# Add Spectra
+#
+
+
+echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+echo ADDING SPECTRA
+echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+if [ $addpca = 1 ]; then 
+    if [ $needpcaadd = 1 ]; then 
+      ${sumpha}  $pcaname "${pcaadd}"
+      ${sumpha} $pcabackname "${pcabkgadd}" 
+    else
+      cp ${pcaadd} ${pcaname}.pha
+      cp ${pcabkgadd} ${pcabackname}.pha
+    fi
+    if [ ${fullpresent} = 1 ]; then
+       if [ $needpcaadd = 1 ]; then 
+            ${sumpha} $fullbackname "${fullbkgadd}" 
+       else
+            cp ${fullbkgadd} ${fullbackname}.pha
+       fi
+    fi
+fi
+
+if [ ${hextepresent} = 1 ]; then 
+    if [ ${nohextea} = 0 ]; then
+           if [ ${i} = 1 ]; then
+              pwd
+              cp ${hxaadd} ${hexteaname}.pha
+              cp ${hxabkgadd} ${hexteabackname}.pha
+       else
+	${sumpha} "${hxaadd}" $hexteaname
+    	${sumpha} "${hxabkgadd}" $hexteabackname 
+    fi
+ fi
+    if [ ${nohexteb} = 0 ]; then
+           if [ ${i} = 1 ]; then
+               cp ${hxbadd} ${hextebname}.pha
+               cp ${hxbbkgadd} ${hextebbackname}.pha
+       else
+    	${sumpha} "${hxbadd}" $hextebname
+    	${sumpha} "${hxbbkgadd}" $hextebbackname
+    fi
+fi
+fi
+
+
+#... now that we do not use sumpha anymore, be nice to joerns psyche and 
+#... add .pha to all the pha-filenames...
+pcaname=${pcaname}.pha
+pcabackname=${pcabackname}.pha
+hexteaname=${hexteaname}.pha
+hextebname=${hextebname}.pha
+hexteabackname=${hexteabackname}.pha
+hextebbackname=${hextebbackname}.pha
+
+#THIS STILL NEEDS FIXING AS PHAADD TAKES CARE OF THIS!!!! JUST CHECK NAMES
+
+
+if [ $addpca = 1 ]; then 
+    if [ $needpcaadd = 1 ]; then 
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo GENERATING WEIGHED RESPONSE MATRIX
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+	# 
+	# Total number of photons
+	#
+	sum="0"
+	for photon in ${photons}; do
+	    sum=${sum}"+"${photon}
+	done
+	totphot=`echo ${sum} | bc -l`
+	weight=""
+	comma=""
+	for photon in ${photons}; do
+	    weight=${weight}${comma}"0"`echo scale=5\;${photon}/${totphot} | bc -l`
+	    comma=","
+	done
+
+	echo 1 ${pcarspadd}
+	echo 2 ${weight}
+	echo 3 ${pcarespname}
+
+	addrmf ${pcarspadd} ${weight} rmffile=${pcarespname}
+    else
+	# only one spectrum -> pcarspadd contains name of the response, so just
+	# copy the response
+	cp ${pcarspadd} ${pcarespname}
+    fi
+
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    echo SETTING PCA RESPONSE TO ${pcarespname}
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    fparkey fitsfile=${pcaname} keyword=RESPFILE value=${pcarespname}
+
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    echo SETTING PCA BACKGROUND TO ${pcabackname}
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    fparkey fitsfile=${pcaname} keyword=BACKFILE value=${pcabackname}
+
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    echo SETTING PCA CORRFILE TO ${pcabackname}
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    fparkey fitsfile=${pcaname} keyword=CORRFILE value=${pcabackname}
+
+    if [ ${oldsyst} = 1 ]; then 
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo WARNING: SETTING   O L D   SYSTEMATICS IN PCA SPECTRUM
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	rm -f dummy.pha
+	
+	if [ ${epoch3} = 1 ]; then 
+	    grppha infile=${pcaname}  outfile=dummy.pha \
+		comm="systematics 0-15 0.01 16-39 0.005 40-57 0.02 \
+		    58-128 0.05 & exit" \
+		clobber=y > /dev/null
+	    mv dummy.pha ${pcaname}
+	else
+	    echo NO OLD SYSTEMATICS FOR epoch4
+	    exit
+	fi
+    fi
+
+    if [ ${syst} = 1 ]; then 
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo SETTING SYSTEMATICS IN PCA SPECTRUM
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	rm -f dummy.pha
+
+	if [ ${epoch3} = 1 ]; then 
+	    echo Choosing epoch3
+	    grppha infile=${pcaname}  outfile=dummy.pha \
+		comm="systematics 0-10 0.003 11-18 0.01 19-29 0.005 \
+		    30-51 0.01 52-128 0.02 & bad 0-4 & bad 53-128 & exit" \
+		clobber=y > /dev/null
+	else
+	    echo Choosing epoch4
+	    grppha infile=${pcaname}  outfile=dummy.pha \
+		comm="systematics 0-8 0.003 9-15 0.01 16-24 0.005 \
+		    25-43 0.01 44-128 0.02 & bad 0-3 & bad 47-128 & exit" \
+		clobber=y > /dev/null
+	fi
+	mv dummy.pha ${pcaname}
+    fi
+
+    if [ ${pcagroup} != 0 ]; then
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo GROUPING PCA TO MIN ${pcagroup}
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	grppha infile=${pcaname}  outfile=dummy.pha \
+	    comm="group min ${pcagroup} & exit" clobber=y > /dev/null
+	mv dummy.pha ${pcaname}
+    fi
+fi
+
+if [ ${addhexte} = 1  -a  ${hextepresent} = 1 ]; then 
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    echo SETTING HEXTE RESPONSES
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+    if [ ${nohextea} = 0 ]; then
+	ln -f -s ../../${remdir}/hexte/hexte-a${gtiext}_src.rmf hexte-a_src.rmf
+	ln -f -s ../../${remdir}/hexte/hexte-a${gtiext}_src.arf hexte-a_src.arf
+	fparkey fitsfile=${hexteaname} keyword=RESPFILE value=hexte-a_src.rmf
+    	fparkey fitsfile=${hexteaname} keyword=ANCRFILE value=hexte-a_src.arf
+    	fparkey fitsfile=${hexteaname} keyword=BACKFILE value=${hexteabackname}
+    fi
+    
+    if [ ${nohexteb} = 0 ]; then
+    	ln -f -s ../../${remdir}/hexte/hexte-b${gtiext}_src.rmf hexte-b_src.rmf
+    	ln -f -s ../../${remdir}/hexte/hexte-b${gtiext}_src.arf hexte-b_src.arf
+    	fparkey fitsfile=${hextebname} keyword=RESPFILE value=hexte-b_src.rmf
+    	fparkey fitsfile=${hextebname} keyword=ANCRFILE value=hexte-b_src.arf
+    	fparkey fitsfile=${hextebname} keyword=BACKFILE value=${hextebbackname}
+    fi
+
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    echo SETTING HEXTE BACKGROUNDS 
+    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+    if [ ${hextegroup} != 0 ]; then 
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo GROUPING HEXTE SPECTRA TO MIN ${hextegroup}
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+	    if [ ${nohextea} = 0 ]; then
+		grppha infile=${hexteaname}  outfile=dummy.pha \
+	    	comm="group min ${hextegroup} & exit" clobber=y > /dev/null
+		mv dummy.pha ${hexteaname}
+    	    fi
+
+	    if [ ${nohexteb} = 0 ]; then
+		grppha infile=${hextebname}  outfile=dummy.pha \
+	    	comm="group min ${hextegroup} & exit" clobber=y > /dev/null
+		mv dummy.pha ${hextebname}
+    	    fi
+
+    fi
+
+
+    if [ ${addclusters} = 1 ]; then
+
+	if [ ${nohextea} = 1 -o ${nohexteb} = 1 ]; then
+		echo "One HEXTE is not present, abort !"
+		exit 
+	fi
+
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	echo Adding both HEXTE clusters
+	echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	${sumpha} hxt hxta.pha hxtb.pha
+
+	if [ ${hextegroup} != 0 ]; then 
+	    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	    echo GROUPING HEXTE SPECTRA TO MIN ${hextegroup}
+	    echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	    grppha infile=hxt.pha  outfile=dummy.pha \
+		comm="group min ${hextegroup} & exit" clobber=y > /dev/null
+	    mv dummy.pha hxt.pha
+	fi
+
+    fi
+	
+fi
+
+# changed from ig to ingore to be sure that xspec V11 works mk
+
+cat > pca${detcomb}.xcm <<EOF
+data 1:1 ${pcaname}
+ignore  1:1-2.5 20.-**
+setplot energy
+EOF
+
+if [ ${hextepresent} = 1 ]; then 
+    #
+    # Generate load-file for XSPEC
+    #
+
+    if [ ${addclusters} = 0 ]; then 
+
+
+	if [ ${nohextea} = 0 -a ${nohexteb} = 0 ]; then
+cat > load${detcomb}.xcm <<EOF
+data 1:1 ${pcaname}
+data 2:2 ${hexteaname}
+data 3:3 ${hextebname}
+ignore  1:**-2.5 20.-**
+ignore  2:**-20. 200.-**
+ignore  3:**-20. 200.-**
+setplot energy
+EOF
+
+cat > hexte${detcomb}.xcm <<EOF
+data 1:1 ${hexteaname}
+data 2:2 ${hextebname}
+ignore  1:**-20. 200.-**
+ignore  2:**-20. 200.-**
+setplot energy
+EOF
+
+	fi
+
+	if [ ${nohextea} = 0 -a ${nohexteb} = 1 ]; then
+
+
+cat > load${detcomb}.xcm <<EOF
+data 1:1 ${pcaname}
+data 2:2 ${hexteaname}
+ignore  1:**-2.5 20.-**
+ignore  2:**-20. 200.-**
+setplot energy
+EOF
+
+cat > hexte${detcomb}.xcm <<EOF
+data 1:1 ${hexteaname}
+ignore  1:**-20. 200.-**
+setplot energy
+EOF
+
+        fi
+
+        if [ ${nohextea} = 1 -a ${nohexteb} = 0 ]; then
+cat > load${detcomb}.xcm <<EOF
+data 1:1 ${pcaname}
+data 2:2 ${hextebname}
+ignore  1:**-2.5 20.-**
+ignore  2:**-20. 200.-**
+setplot energy
+EOF
+
+cat > hexte${detcomb}.xcm <<EOF
+data 1:1 ${hextebname}
+ignore  1:**-20. 200.-**
+setplot energy
+EOF
+
+        fi
+
+    else
+
+cat > load${detcomb}.xcm <<EOF
+data 1:1 ${pcaname}
+data 2:2 hxt.pha
+ignore  1:**-2.5 20.-**
+ignore  2:**-20. 200.-**
+setplot energy
+EOF
+
+    fi
+    
+
+fi
+
+echo ALL DONE
+
