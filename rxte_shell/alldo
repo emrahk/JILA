@@ -1,0 +1,343 @@
+#!/bin/bash
+#
+# This program uses a bunch of shell scripts and IDL programs to do all
+# PCA and HEXTE extraction + power spectral extraction, and places all files
+# in place for further fitting. The fitting part has not been automized yet
+#
+# INPUTS
+#
+# obsid : the argument after the command is the full obsid
+#
+# OUTPUTS
+#
+# spectral and temporal analysis directories
+#
+# OPTIONAL INPUTS
+#
+# -electron : electron level in PCA for gti extraction, default 0.1
+# -nobreak  : do not check for pca_breakdowns (for newer data)
+# -archive : in hexte extraction, use archival data (necessary for some obsid)
+# -2only  : only extract pcu2 data
+# -top     : only extract top 
+# -nohexte : do not do hexte extraction (for new data)
+# -nohextea : do not do hexte cluster A extraction
+# -nohexteb : do not do hexte cluster B extraction (this requires a fix in combinepha, so do not use now)
+# -eafile : light curve extraction and power spectra programs need to know the 
+#           event analyzer flags and mni / max channels. These need to be 
+#           found beforehand and placed in top level directory (XRAY) as 
+#           XXXXX_eafile.txt
+#
+# -prevo : obsid of previous observation. This is for convenience, to copy 
+#          results of previous fits to provide good starting point for new fits
+#
+#
+# USES
+#
+# pcaextract, eaextract, combinelc, combinepha, prep_spe_hextebinned (shell)
+# coltimes.pro, rxte_synfou.pro (IDL)
+#
+# USED BY
+#
+# NONE
+#
+# created by emrah kalemci, november 2014
+#
+# LOGS
+# fixed AO determination after AO9
+#
+# Dec 3rd 2014, added -nobreak keyword as it was failing 2010 observations
+# Jan 3rd 2015, ra and dec option added because of offset observations
+# March 19 2015, added -top and --2only keywords for high quality 1655 spectra
+#
+
+
+# get obsid
+
+obsid=$1
+
+# shift to optional arguments
+
+shift
+
+
+# preset optional arguments
+
+ele=0.1
+nobreak=0
+nohextea=0
+nohexteb=0
+nohexte=0
+archiveflag=""
+eafilep=0
+prevop=0
+newra=0
+newdec=0
+newrdp=0
+topp=0
+pcu2p=0
+
+for argument in $*; do
+   found=0
+
+ if [ ${argument#-electron=} != ${argument} ]; then
+        ele=${argument#-electron=}
+        found=1
+ fi
+
+  if [ ${argument} = "-nobreak" ]; then
+        nobreak=1
+        found=1
+  fi
+
+  if [ ${argument} = "-nohextea" ]; then
+        nohextea=1
+        found=1
+  fi
+
+
+  if [ ${argument} = "-nohexteb" ]; then
+        nohexteb=1
+        found=1
+  fi
+
+  if [ ${argument} = "-nohexte" ]; then
+        nohexte=1
+        found=1
+  fi
+
+  if [ ${argument} = "-archive" ]; then
+        archiveflag="-archive"
+        found=1
+  fi
+
+ if [ ${argument#-eafile=} != ${argument} ]; then
+        eafile=${argument#-eafile=}
+        found=1
+	eafilep=1
+ fi
+  
+ if [ ${argument#-prevo=} != ${argument} ]; then
+        prevo=${argument#-prevo=}
+        found=1
+	prevop=1
+  fi
+  
+ if [ ${argument#-newra=} != ${argument} ]; then
+        newra=${argument#-newra=}
+        found=1
+	newrdp=1
+  fi
+  
+ if [ ${argument#-newdec=} != ${argument} ]; then
+        newdec=${argument#-newdec=}
+        found=1
+	newrdp=1
+  fi
+  
+ if [ ${argument} = "-top" ]; then
+        found=1
+	topp=1
+  fi
+  
+ if [ ${argument} = "-2only" ]; then
+        found=1
+	pcu2p=1
+  fi
+  
+done
+
+echo topp ${topp}
+echo pcu2p ${pcu2p}  
+
+# from obsid create the directory
+
+propid=`echo $obsid | cut -d'-' -f1`
+ob2=`echo $obsid | cut -d'-' -f3`
+ob3=`echo $obsid | cut -d'-' -f4`
+
+if [ ${prevop} = 1 ]; then
+
+# from obsid create the directory
+
+ppropid=`echo ${prevo} | cut -d'-' -f1`
+pob2=`echo ${prevo} | cut -d'-' -f3`
+pob3=`echo ${prevo} | cut -d'-' -f4`
+
+echo previous obs: ${ppropid}_${pob2}.${pob3}
+fi
+
+andir=${propid}_${ob2}.${ob3}
+mkdir ${andir}
+
+AO=`echo ${propid} | cut -c-1`
+
+if [ ${AO} == '9' ]; then
+    AO=`echo $((${propid:0:1}+${propid:1:1}))`
+    fi
+
+#correct this directory for ostroda
+
+obspath=/Users/emka1155/RXTE/DATA_AN/RAW/AO${AO}/P${propid}/
+
+echo $obspath
+echo $ele
+
+cd ${andir}
+
+#do basic PCA spectral extraction
+
+offsarg=""
+toparg=""
+
+if [ ${newrdp} = 1 ]; then
+    offsarg="-ra=${newra} -dec=${newdec} -offset"
+    echo ${offsarg}
+fi
+
+if [ ${topp} = 1 ]; then
+    toparg="-top"
+    echo ${toparg}
+fi
+
+if [ ${pcu2p} = 1 ]; then
+    toparg="${toparg} --2only"
+    echo ${toparg}
+fi
+
+
+if [ ${nobreak} = 1 ]; then
+    pcaextract ${obsid} ${obspath} ${ob2}.${ob3} -electron=${ele} -full -nobreak ${offsarg} ${toparg}
+    echo ${nbrflg}
+else
+    pcaextract ${obsid} ${obspath} ${ob2}.${ob3} -electron=${ele} -full ${offsarg} ${toparg}
+fi
+
+#do basic HEXTE spectral extraction, unless specifically constrained
+
+if [ ${newrdp} = 1 ]; then
+    offsarg="-ra=${newra} -dec=${newdec}"
+#    echo ${offsarg}
+fi
+
+if [ ${nohexte} = 1 ]; then
+    echo NO HEXTE extraction will be done
+else
+    if [ ${nohextea} = 1 ]; then
+	echo NO HEXTE cluster A extraction will be done
+    else
+	hexte_standard ${obsid} ${obspath} ${ob2}.${ob3}h -a -noseparate ${archiveflag} ${offsarg} > ${ob2}.${ob3}ha.log
+    fi
+    if [ ${nohexteb} = 1 ]; then
+	echo NO HEXTE cluster B extraction will be done
+    else
+	hexte_standard ${obsid} ${obspath} ${ob2}.${ob3}h -b -noseparate ${archiveflag} ${offsarg} > ${ob2}.${ob3}hb.log
+    fi
+
+#combine hexte spectra 
+
+if [ ${nohextea} = 0 ] && [ ${nohexteb} = 0 ]; then
+    combinepha ${ob2}.${ob3}h.all ${ob2}.${ob3}h -addclusters -nopca ${archiveflag}
+fi
+
+if [ ${nohextea} = 0 ] && [ ${nohexteb} = 1 ]; then
+
+    combinepha ${ob2}.${ob3}h.all ${ob2}.${ob3}h -nopca ${archiveflag} -nohexteb
+fi
+
+if [ ${nohextea} = 1 ] && [ ${nohexteb} = 0 ]; then
+
+    combinepha ${ob2}.${ob3}h.all ${ob2}.${ob3}h -nopca ${archiveflag} -nohextea
+fi
+
+
+fi # nohexte
+
+
+# Now the timing part, this is tricky, change the path
+
+if [ ${eafilep} = 1 ]; then
+
+     idl -e "coltimex, '${obsid}', eafile='${eafile}'"
+
+else 
+
+     idl -e "coltimex, '${obsid}'"
+
+fi
+
+# prepare the directory for spectral fitting
+
+cp ~/RXTE/DATA_AN/JILA/software/rxte_shell/prep_spe_hextebinned .
+
+if [ ${nohextea} = 0 ] && [ ${nohexteb} = 0 ]; then
+    prep_spe_hextebinned ${ob2}.${ob3} ${ob2}.${ob3}h ${archiveflag}
+fi
+
+if [ ${nohextea} = 1 ] && [ ${nohexteb} = 0 ]; then
+    prep_spe_hextebinned ${ob2}.${ob3} ${ob2}.${ob3}h ${archiveflag} -nohextea
+fi
+
+if [ ${nohextea} = 0 ] && [ ${nohexteb} = 1 ]; then
+    prep_spe_hextebinned ${ob2}.${ob3} ${ob2}.${ob3}h ${archiveflag} -nohexteb
+fi
+
+
+if [ ${prevop} = 1 ]; then
+    
+    cp ../${ppropid}_${pob2}.${pob3}/spe_hextebinned/fit_p*.xcm spe_hextebinned/.
+    cp ../${ppropid}_${pob2}.${pob3}/spe_hextebinned/co*.xcm spe_hextebinned/.
+
+fi
+
+#do timing
+
+cp -fr ${ob2}.${ob3} ${ob2}.${ob3}t
+
+./allextiming
+
+#combinelc, combinepha
+
+combinelc ${ob2}.${ob3}t.all ${ob2}.${ob3}t -nohexte
+
+if [ ${topp} = 1 ]; then
+
+    combinepha ${ob2}.${ob3}t.all ${ob2}.${ob3}t -nohexte -top
+
+else
+
+    combinepha ${ob2}.${ob3}t.all ${ob2}.${ob3}t -nohexte
+fi
+
+# this finishe spectral and light curve extraction
+
+# do synchonization and fourier spectra of light curves
+# easier to do with an idl program, eafile not there needs to be fixed
+
+if [ ${eafilep} = 1 ]; then
+    
+    idl -e "rxte_synfou, '${obsid}', eafile='${eafile}'"
+
+else
+
+    idl -e "rxte_synfou, '${obsid}'"
+fi
+
+# make timing analysis directory
+
+mkdir an
+
+# cp files from previous runs if previous obsid is provided
+
+if [ ${prevop} = 1 ]; then
+
+cp ../${ppropid}_${pob2}.${pob3}/an/psdfit2.pro an/.
+cp ../${ppropid}_${pob2}.${pob3}/an/result.sav an/.
+
+cd an
+
+    idl -e "psdfit2, '${obsid}'"
+
+fi
+
+
+exit 0
