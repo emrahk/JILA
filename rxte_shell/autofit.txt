@@ -1,0 +1,60 @@
+brainstorming for the automatic fitting algorithm. There is already a version in fit.xcm that I can base things
+
+1. choose initial fit model and initial estimates
+
+I think it should start with previous fit and do all regular things for pca and then pca+hexte
+
+for pca;
+
+fit
+do error on index
+do error on tin and norm (if there is diskbb)
+do eqw on gauss (if there is gauss)
+collect 3. 25. keV flux with error
+delete absorption, get unabsorbed flux
+if there is diskbb, remove diskbb to get power-law flux only
+
+think about hexte later.
+
+simon vaughan programs at hand 
+
+1. tcl procedure to find minimum of an array
+2. shakefit -> this is what I will use, loop over all parameters (until they are fixed) with error and fit to get correct minima
+
+3. main program to do everything, I need to rewrite this.
+
+#### update
+
+programs that take the previous fits and redoing have been written.
+
+#### 
+
+Now the automatization of spectral and temporal extration
+
+A shell program will be faster in execution, but an IDL program is faster for me to write.
+
+ok, challenge, write a shell program
+
+1.input: obsid DONE
+2. create directory DONE
+3. run pcaextract DONE
+4. run hexte_standard+combinepha DONE, need to fix combinepha to handle singl cluster
+-an idl program can do next steps faster
+4. determine # of gti files DONE
+5. determine # of pcu in gti file DONE
+6. obtain total time in gti files, multiply them DONE
+7. determine the best gti DONE
+8. unnecessary pha files and gti files removed DONE
+8. determine the ea combination - MANUAL, provide as an input DONE
+9. run eaextract in timing mode with the best gti DONE
+10. combinelc, combinepha DONE
+11. mkdir an DONE
+- idl program
+12. run syncseg, fourier DONE
+13. create spe_hextebinned DONE
+IF previous obsid provided
+14. cp previous psdfit.pro to an, (to be run manually)
+15. cp previous *.xcm to spe_hextebinned
+alldo ends here
+16. run the correct fit_pca manually
+17. if there is hexte, run the correct fit_ph manually
