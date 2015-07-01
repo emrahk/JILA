@@ -1,0 +1,6 @@
+git pull at ~/TOOLS/xtescripts 
+uptodate with erlangen
+makeback problem, it was trying to use the saa history file from caldb, changed to use the pca_bgkd file.
+combinepha now uses phaadd and handles single observations correctly
+
+
