@@ -1,0 +1,172 @@
+#!/bin/bash
+
+if [ ${#*} = 0 ]; then
+    echo
+    echo Syntax: $0 inputpcadir inputhextedir
+    echo
+    echo optional arguments
+    echo -archive : use archive data in HEXTE
+    echo -nohextea : no hextea extraction
+    echo -nohexteb : no hexteb extraction
+    echo -nohexte  : there was no hexte data, just do pca
+fi
+
+inpca=""
+inhex=""
+archive=0
+nohextea=0
+nohexteb=0
+nohexte=0
+
+for argument in $*; do
+    found=0
+
+    if [ ${argument} = "-archive" ]; then
+	archive=1
+	found=1
+	fi
+
+  if [ ${argument} = "-nohextea" ]; then
+        nohextea=1
+        found=1
+        fi
+
+  if [ ${argument} = "-nohexteb" ]; then
+        nohexteb=1
+        found=1
+        fi
+
+  if [ ${argument} = "-nohexte" ]; then
+        nohexte=1
+        found=1
+        fi
+
+    if [ ${found} = 0 ]; then
+        if [ X${inpca} = X ]; then
+            inpca=${argument}
+        else
+           inhex=${argument}
+        fi
+    fi
+done
+
+echo
+echo $inpca
+echo $inhex
+echo archive=${archive}
+
+#cp -fr /raid1/ekalemci/DATA_AN/spe_hextebinned .
+mkdir spe_hextebinned
+#find pca files
+#spectra
+phaf=`find ${inpca}/standard2f* -name "*.pha" -print`
+cd spe_hextebinned
+for phafile in ${phaf}; do
+    ln -s ../${phafile} 
+done
+cd ..
+#response
+resp=`find ${inpca}/standard2f* -name "*.rsp" -print`
+cd spe_hextebinned
+ln -s ../${resp}
+
+
+#add systematics to pca data
+#need to differentiate the back and source
+#find source name
+lcname=`find ../${inpca}/standard2f* -name "*.lc" -print`
+#determine if all detectors are on
+alld=0
+for lcfile in $lcname; do
+    infi=`basename ${lcfile}`
+    if [ ${infi} = 'standard2f_excl.lc' ]; then 
+	alld=1
+	fi
+done
+
+if [ ${alld} = 1 ]; then
+    infile=standard2f_excl.pha
+    outfile=standard2f_excl_sys.pha
+   else
+    infile=`basename ${lcname} | sed s/\.lc//`.pha
+    outfile=`basename ${lcname} | sed s/\.lc//`_sys.pha
+fi
+
+addsys $infile $outfile
+
+if [ ${nohexte} = 0 ]; then 
+
+    #copy hextefiles
+
+    if [ ${nohextea} = 0 ] && [ ${nohexteb} = 0 ]; then
+
+	ln -s ../${inhex}.all/spectrum/hxt.pha 
+	ln -s ../${inhex}.all/spectrum/hxt.bkg 
+	ln -s ../${inhex}.all/spectrum/hxt.rsp 
+
+    fi
+
+    if [ ${nohextea} = 1 ]; then 
+	ln -s ../${inhex}.all/spectrum/hxtb.pha
+	ln -s ../${inhex}.all/spectrum/hxtbback.pha
+	ln -s ../${inhex}.all/spectrum/hexte-b_src.rmf
+	ln -s ../${inhex}.all/spectrum/hexte-b_src.arf
+    fi
+
+    if [ ${nohexteb} = 1 ]; then
+	ln -s ../${inhex}.all/spectrum/hxta.pha
+	ln -s ../${inhex}.all/spectrum/hxtaback.pha
+	ln -s ../${inhex}.all/spectrum/hexte-a_src.rmf
+	ln -s ../${inhex}.all/spectrum/hexte-a_src.arf
+    fi
+
+
+    if [ ${archive} = 1 ]; then
+	echo "30   41  3" >> rebinx.dat
+	echo "42  59  9" >> rebinx.dat
+    else
+	echo " 16   31   2" > rebinx.dat
+	echo " 32   59   4" >> rebinx.dat
+	echo " 60   99  10" >> rebinx.dat
+	echo "100  227  64" >> rebinx.dat
+    fi
+
+    #rebin hexte
+
+    if [ ${nohextea} = 0 ] && [ ${nohexteb} = 0 ]; then
+	grppha hxt.pha hxt_rebin.pha chatter=0 \
+	    comm="group rebinx.dat & exit"
+    fi
+
+    if [ ${nohextea} = 1 ]; then
+	grppha hxtb.pha hxt_rebin.pha chatter=0 \
+	    comm="group rebinx.dat & exit"
+    fi
+
+    if [ ${nohexteb} = 1 ]; then
+	grppha hxta.pha hxt_rebin.pha chatter=0 \
+	    comm="group rebinx.dat & exit"
+    fi
+
+    #prep xspec
+    echo data 1:1 ${outfile} > xspec_extbin.xcm
+    echo ignore 1:1-3 25.-** >> xspec_extbin.xcm
+    echo data 2:2 hxt_rebin.pha >> xspec_extbin.xcm
+    echo ig 2:1-16 37-** >> xspec_extbin.xcm
+    echo cpd /xw >> xspec_extbin.xcm
+    echo setplot e >> xspec_extbin.xcm
+    echo plot ld >> xspec_extbin.xcm
+    echo >> xspec_extbin.xcm
+else
+    #prep xspec
+    echo data 1:1 ${outfile} > xspec_extbin.xcm
+    echo ignore 1:1-3 25.-** >> xspec_extbin.xcm
+    echo cpd /xw >> xspec_extbin.xcm
+    echo setplot e >> xspec_extbin.xcm
+    echo plot ld >> xspec_extbin.xcm
+    echo >> xspec_extbin.xcm
+fi
+
+echo abund wilm >> xspec_extbin.xcm
+echo xsect vern >> xspec_extbin.xcm
+
