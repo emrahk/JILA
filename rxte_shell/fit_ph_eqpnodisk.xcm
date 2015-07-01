@@ -1,0 +1,651 @@
+# this procedure does all the eqpair fits and errors for the case no disk is detected
+# needs shakefit
+
+# error stopat <nn> <tol> max <max-chi> <del-chi> <par>
+
+  proc shakefit { fileout } {
+    tclout modpar                         ;# find number of parameters
+    set nopar $xspec_tclout
+    for {set j 1} {$j <= $nopar} {incr j} {
+       tclout param $j
+       set pdel [lindex $xspec_tclout 1]   ;# get parameter delta
+       if {$pdel < 0} continue             ;# if frozen goto next param
+       set doerror 1
+       set delchi 2.706                    ;# delta-chi^2 to probe
+       set counter 0
+       while {$doerror == 1 && $counter < 100} {
+          incr counter
+          error stopat 10 0.1 max 50.0 $delchi $j
+	  echo $counter $delchi $j
+          tclout error $j
+          set errout [lindex $xspec_tclout 2]
+          if {[string match ???T????? $errout] || [string match ????T???? $errout]} {
+            set doerror 0                ;# Hit lower/upper limits
+          }
+          if [string match F???????? $errout] {
+             set doerror 0                ;# Not found better fit
+             set errres $xspec_tclout
+             tclout pinfo $j
+             set compname [lindex $xspec_tclout 0]
+             puts $fileout "$j $compname $errres"
+          } else {
+             fit 100 0.01                 ;# Found better fit
+             if [string match ?T??????? $errout] {
+                set delchi [expr $delchi + 2] ;# increase if non-monotonic
+             }                            ;# End IF (?F)
+          }                               ;# End IF (F?)
+       }                                  ;# End WHILE
+    }                                     ;# End FOR
+  }                                       ;# End PROC
+
+# ----------------------------------------------------------
+
+query yes
+
+cpd /xs
+
+# Define plotting details
+
+setplot energy
+setplot add
+
+# Open the file to put the results in.
+
+set fileout [open ph_eqp0.dat w]
+
+#load the data
+
+@xspec_extbin.xcm
+
+#load the initial model
+
+@coppi0.xcm
+
+
+#get non thermal to thermal to a middle point
+
+newpar 6 0.5
+renorm
+
+# do the fit
+
+fit 100 0.01
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# save model for later use
+
+if {[file exists coppi0.xcm]} { file delete coppi0.xcm }
+save model coppi0.xcm
+
+editmod const*tbabs*(eqpair+gauss) & /*
+    
+newpar 24 6.4
+newpar 25 0.2 0.02 0.1 0.1 0.99 0.99
+newpar 26 2e-4
+freeze 24
+renorm
+
+#refit
+
+fit 100 0.01
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi2 $xspec_tclout
+tclout dof
+set dof2 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 2 spectrum: 2
+setplot command la f chi-squared $chi2 / $dof2 dof
+plot ldata chi
+
+# Perform an F-test (for the hell of it!)
+
+ftest $chi2 $dof2 $chi1 $dof1
+tclout ftest
+set fprob $xspec_tclout
+
+# if ftest ok, do the shake with gauss
+
+if {[expr abs($fprob)] < 0.005} {
+
+   #write down the model to the text file
+ 
+   tclout model
+
+   set modeln [lindex $xspec_tclout 1]
+  
+   puts $fileout "$modeln "
+
+# write down the ftest result
+
+   puts $fileout "Ftest: $chi1 $dof1 $chi2 $dof2 $fprob"
+
+   shakefit $fileout
+
+   # write down the equivalent width
+
+   eqw RANGE 0 5
+
+   tclout eqwidth
+
+   puts $fileout "eqw: $xspec_tclout"
+
+   if {[file exists coppi0ga.xcm]} { file delete fit_ph_coppi0ga.xcm }
+     
+   save model coppi0ga.xcm
+} else {
+  #go back to coppi0 and do the shake
+  
+  @coppi0.xcm
+
+  #write down the model to the text file
+ 
+  tclout model
+
+  set modeln [lindex $xspec_tclout 1]
+  
+  puts $fileout "$modeln "
+
+
+  fit 100 0.01
+   
+   # do the shake
+
+   shakefit $fileout
+
+   #  Save the new model
+
+   if {[file exists coppi0.xcm]} { file delete coppi0.xcm }
+    
+   save model coppi0.xcm
+
+}
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 1 spectrum
+setplot command la f chi-squared $chi1 / $dof1 dof
+plot ldata chi
+
+#record chi2
+
+puts $fileout "CHI2/DOF: $chi1 $dof1"
+
+#close file
+
+close $fileout
+
+#now going on to coppi1
+
+set fileout [open ph_eqp1.dat w]
+
+#go back to coppi0, we will test gauss for each case, probably unnecessary
+
+
+@coppi0.xcm
+
+puts $fileout "Thaw injection index"
+
+#thawing injection index
+
+thaw 11
+renorm
+
+# check nth/th ratio, if exactly 0, change it to a very small number
+
+tclout par 6
+set nthrat [lindex $xspec_tclout 0] 
+
+if { $nthrat == 0. } { newpar 6 1E-8}
+
+# do the fit
+
+fit 100 0.01
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# save model for later use
+
+if {[file exists coppi1.xcm]} { file delete coppi1.xcm }
+save model coppi1.xcm
+
+editmod const*tbabs*(eqpair+gauss) & /*
+
+newpar 24 6.4
+newpar 25 0.2 0.02 0.1 0.1 0.99 0.99
+newpar 26 2e-4
+freeze 24
+renorm
+
+#refit
+
+fit 100 0.01
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi2 $xspec_tclout
+tclout dof
+set dof2 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 2 spectrum: 2
+setplot command la f chi-squared $chi2 / $dof2 dof
+plot ldata chi
+
+# Perform an F-test (for the hell of it!)
+
+ftest $chi2 $dof2 $chi1 $dof1
+tclout ftest
+set fprob $xspec_tclout
+
+# if ftest ok, do the shake with gauss
+
+if {[expr abs($fprob)] < 0.005} {
+
+   #write down the model to the text file
+
+   tclout model
+
+   set modeln [lindex $xspec_tclout 1]
+
+   puts $fileout "$modeln "
+
+# write down the ftest result
+
+   puts $fileout "Ftest: $chi1 $dof1 $chi2 $dof2 $fprob"
+
+   shakefit $fileout
+
+   # write down the equivalent width
+
+   eqw RANGE 0 5
+
+   tclout eqwidth
+
+   puts $fileout "eqw: $xspec_tclout"
+
+   if {[file exists coppi1ga.xcm]} { file delete fit_ph_coppi1ga.xcm }
+
+   save model coppi1ga.xcm
+} else {
+  #go back to coppi1 and do the shake
+
+  @coppi1.xcm
+
+  #write down the model to the text file
+
+  tclout model
+
+  set modeln [lindex $xspec_tclout 1]
+
+  puts $fileout "$modeln "
+
+  fit 100 0.01
+
+# do the shake
+
+  shakefit $fileout
+
+#  Save the new model
+
+   if {[file exists coppi1.xcm]} { file delete coppi1.xcm }
+    
+    save model coppi1.xcm
+
+}
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 1 spectrum
+setplot command la f chi-squared $chi1 / $dof1 dof
+plot ldata chi
+
+
+#record chi2
+
+puts $fileout "CHI2/DOF: $chi1 $dof1"
+
+#close
+
+close $fileout
+
+# thaw reflection and xi
+
+set fileout [open ph_eqprxi.dat w]
+
+puts $fileout "Thaw reflection and xi"
+
+
+#if there is an earlier fit with reflection and xi determined use those values
+#otherwise start with a reasonable estimate
+
+if {[file exists coppirxi.xcm ]} {
+   @coppirxi.xcm
+   tcloout par 14
+   set refpar [lindex $xspec_tclout 0]
+   if { $refpar == 0. } { set refpar 0.5 }
+   tclout par 18
+   set xipar [lindex $xspec_tclout 0]
+   if { $xipar == 0. } {set xipar 100. }
+   } else {
+   set refpar 0.5
+   set xipar 100.
+}
+
+
+#go back to coppi 1 and test gauss later
+
+#thawing reflection and xi
+
+@coppi1.xcm
+
+thaw 14
+thaw 18
+
+newpar 14 $refpar
+newpar 18 $xipar
+renorm
+
+# check nth/th ratio, if exactly 0, change it to a very small number
+
+tclout par 6
+set nthrat [lindex $xspec_tclout 0] 
+
+if { $nthrat == 0. } { newpar 6 1E-8}
+
+#check injection index, if 0, fix it to 3.
+
+tclout par 11
+set ninjec [lindex $xspec_tclout 0] 
+
+if { $ninjec == 0. } { 
+   puts $fileout "fix tauinj=3."
+   newpar 11 3. -1
+}
+
+
+# do the fit
+
+fit 100 0.01
+
+#check gauss
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# save model for later use
+
+if {[file exists coppirxi.xcm]} { file delete coppirxi.xcm }
+save model coppirxi.xcm
+
+editmod const*tbabs*(eqpair+gauss) & /*
+
+newpar 24 6.4
+newpar 25 0.2 0.02 0.1 0.1 0.99 0.99
+newpar 26 2e-4
+freeze 24
+renorm
+
+#refit
+
+fit 100 0.01
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi2 $xspec_tclout
+tclout dof
+set dof2 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 2 spectrum: 2
+setplot command la f chi-squared $chi2 / $dof2 dof
+plot ldata chi
+
+# Perform an F-test (for the hell of it!)
+
+ftest $chi2 $dof2 $chi1 $dof1
+tclout ftest
+set fprob $xspec_tclout
+
+# if ftest ok, do the shake with gauss
+
+if {[expr abs($fprob)] < 0.005} {
+
+   #write down the model to the text file
+
+   tclout model
+
+   set modeln [lindex $xspec_tclout 1]
+
+   puts $fileout "$modeln "
+
+# write down the ftest result
+
+   puts $fileout "Ftest: $chi1 $dof1 $chi2 $dof2 $fprob"
+
+   shakefit $fileout
+
+   # write down the equivalent width
+
+   eqw RANGE 0 5
+
+   tclout eqwidth
+
+   puts $fileout "eqw: $xspec_tclout"
+
+   if {[file exists coppirxiga.xcm]} { file delete fit_ph_coppirxiga.xcm }
+
+   save model coppirxiga.xcm
+} else {
+  #go back to coppirxi and do the shake
+
+  @coppirxi
+
+  #write down the model to the text file
+
+  tclout model
+
+  set modeln [lindex $xspec_tclout 1]
+
+  puts $fileout "$modeln "
+
+  fit 100 0.01
+
+# do the shake
+
+  shakefit $fileout
+
+#  Save the new model
+
+   if {[file exists coppirxi.xcm]} { file delete coppirxi.xcm }
+    
+    save model coppirxi.xcm
+}
+
+# Get the fit statistic and DOF
+
+  tclout stat
+  set chi1 $xspec_tclout
+  tclout dof
+  set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+  setplot command la t Model 1 spectrum
+  setplot command la f chi-squared $chi1 / $dof1 dof
+  plot ldata chi
+
+#record chi2
+
+   puts $fileout "CHI2/DOF: $chi1 $dof1"
+
+#close
+
+close $fileout
+
+#purely thermal case; not testing gauss anymore, start from the best present case
+
+set fileout [open ph_eqp2.dat w]
+puts $fileout "Thermal Comptonization"
+
+#write down the model to the text file
+
+tclout model
+
+set modeln [lindex $xspec_tclout 1]
+
+puts $fileout "$modeln "
+
+# check injection, if exactly 0, change it to 3 and fix it
+
+tclout par 11
+set ninjec [lindex $xspec_tclout 0] 
+
+if { $ninjec == 0. } { 
+   newpar 11 3. -1
+   puts $fileout "fix tauinj=3."
+}
+
+newpar 6 1E-8 -1
+
+renorm
+
+# do the fit
+
+fit 100 0.01
+
+# do the shake
+
+shakefit $fileout
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 1 spectrum
+setplot command la f chi-squared $chi1 / $dof1 dof
+plot ldata chi
+
+#  Save the new model
+
+if {[file exists coppi2.xcm]} { file delete coppi2.xcm }
+    
+save model coppi2.xcm
+
+#record chi2
+
+puts $fileout "CHI2/DOF: $chi1 $dof1"
+
+close $fileout
+
+# purely non-thermal model
+
+set fileout [open ph_eqp3.dat w]
+puts $fileout "Non-thermal Comptonization"
+
+#write down the model to the text file
+
+tclout model
+
+set modeln [lindex $xspec_tclout 1]
+
+puts $fileout "$modeln "
+
+# check injection, if exactly 0, change it to 3 and fix it
+
+tclout par 11
+set ninjec [lindex $xspec_tclout 0] 
+
+if { $ninjec == 0. } { 
+   newpar 11 3. -1
+   puts $fileout "fix tauinj=3."
+}
+
+newpar 6 0.99 -1
+renorm
+
+# do the fit
+
+fit 100 0.01
+
+# do the shake
+
+shakefit $fileout
+
+# Get the fit statistic and DOF
+
+tclout stat
+set chi1 $xspec_tclout
+tclout dof
+set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+setplot command la t Model 1 spectrum
+setplot command la f chi-squared $chi1 / $dof1 dof
+plot ldata chi
+
+#  Save the new model
+
+if {[file exists coppi3.xcm]} { file delete coppi3.xcm }
+    
+save model coppi3.xcm
+
+#record chi2
+
+puts $fileout "CHI2/DOF: $chi1 $dof1"
+
+
+#  Reset everything
+
+data none
+model none
+
+# Close the file.
+
+close $fileout
+
+# end of script
+

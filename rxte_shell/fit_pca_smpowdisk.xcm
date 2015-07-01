@@ -1,0 +1,255 @@
+# Some info later
+#
+# this version includes a gaussion to the fit and checks if it is required
+#
+# ----------------------------------------------------------
+# Define a TCL procedure to refine fitting results
+# by repeated use of 'error' and 'fit'
+# The main loop runs over all parameters. For each free
+# parameter perform at least one 'error' command to
+# 'shake' it out of local minima. Keep fitting the parameter
+# until 'error' does not find a new minimum.
+# Finish once all free parameters have been shaken.
+#
+# $erroout comprises nine T/F flags
+# If the first flag is TRUE then a new minimum was
+# found during the last error command
+#
+# error stopat <nn> <tol> max <max-chi> <del-chi> <par>
+
+  proc shakefit { fileout } {
+    tclout modpar                         ;# find number of parameters
+    set nopar $xspec_tclout
+    for {set j 1} {$j <= $nopar} {incr j} {
+       tclout param $j
+       set pdel [lindex $xspec_tclout 1]   ;# get parameter delta
+       if {$pdel < 0} continue             ;# if frozen goto next param
+       set doerror 1
+       set delchi 2.706                    ;# delta-chi^2 to probe
+       set counter 0
+       while {$doerror == 1 && $counter < 100} {
+          incr counter
+          error stopat 10 0.1 max 50.0 $delchi $j
+          tclout error $j
+          set errout [lindex $xspec_tclout 2]
+          if {[string match ???T????? $errout] || [string match ????T???? $errout]} {
+            set doerror 0                ;# Hit lower/upper limits
+          }
+          if [string match F???????? $errout] {
+             set doerror 0                ;# Not found better fit
+             set errres $xspec_tclout
+             tclout pinfo $j
+             set compname [lindex $xspec_tclout 0]
+	     puts $fileout "$j $compname $errres"
+          } else {
+             fit 100 0.01                 ;# Found better fit
+             if [string match ?T??????? $errout] {
+                set delchi [expr $delchi + 2] ;# increase if non-monotonic
+             }                            ;# End IF (?F)
+          }                               ;# End IF (F?)
+       }                                  ;# End WHILE
+    }                                     ;# End FOR
+  }                                       ;# End PROC
+
+# ----------------------------------------------------------
+
+  query no
+
+  cpd /xs
+
+# Define plotting details
+
+  setplot energy
+  setplot add
+  #setplot command re x 0.4 5.0
+  #setplot command re y 1e-4 0.5 
+
+# Open the file to put the results in.
+
+  set fileout [open pca_result.dat w]
+
+  @xspec_extbin.xcm
+
+  data 2 none
+
+  @fit_p_smpowerdisknhfx.xcm
+
+  fit 100 0.01
+
+  tclout model
+
+  array set modelp {}
+  for {set i 0} {$i < 5} {incr i} {
+      set modelp($i) [lindex $xspec_tclout $i]
+      }
+  puts $fileout "$modelp(0) $modelp(1) $modelp(2) $modelp(3) $modelp(4)"  
+
+  shakefit $fileout
+
+  # Get the fit statistic and DOF 
+
+    tclout stat 
+    set chi1 $xspec_tclout
+    tclout dof 
+    set dof1 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+    setplot command la t Model 1 spectrum
+    setplot command la f chi-squared $chi1 / $dof1 dof
+    plot ldata chi
+
+#  Save the new model
+
+    save model fit_p_smpowerdisknhfx.xcm /*
+
+#  calculate and write down the fluxes
+
+   flux 3. 25. err
+   tclout flux
+   array set absflux {}
+   for {set i 0} {$i < 3} {incr i} {
+       set absflux($i) [lindex $xspec_tclout $i]
+       }
+   puts $fileout "3_25abs $absflux(0) $absflux(1) $absflux(2)"
+
+   delc 1
+ 
+   flux 3. 25. noerr
+   tclout flux
+   set unabs [lindex $xspec_tclout 0]
+   puts $fileout "3_25unabs $unabs"
+
+   tclout modcomp
+   set nopar $xspec_tclout
+  
+   delc $nopar
+
+   flux 3. 25. noerr
+   tclout flux
+   set unabsp [lindex $xspec_tclout 0]
+   puts $fileout "3_25plf $unabsp"
+
+   set unabsdb [expr $unabs-$unabsp]
+   puts $fileout "3_25dbb $unabsdb"
+
+#############
+# Insert gauss in spectral model
+
+# first reload the model
+
+    @fit_p_smpowerdisknhfx
+
+    editmod tbabs*smedge*(powerlaw+diskbb+gauss) & /*
+    newpar 10 6.4 -1
+    newpar 11 0.2 0.05 0.05 0.5 0.5
+    newpar 12 5e-4 
+    freeze 10                ;# line at 6.4
+
+#  new model in the output file
+
+    tclout model
+
+    for {set i 0} {$i < 5} {incr i} {
+      set modelp($i) [lindex $xspec_tclout $i]
+      }
+    puts $fileout "$modelp(0) $modelp(1) $modelp(2) $modelp(3) $modelp(4)"  
+
+#   refit
+
+    fit 100 0.01
+
+    # Get the fit statistic and DOF 
+
+    tclout stat 
+    set chi2 $xspec_tclout
+    tclout dof 
+    set dof2 [lindex $xspec_tclout 0]
+
+# Plot the final fit
+
+    setplot command la t Model 2 spectrum: 2
+    setplot command la f chi-squared $chi2 / $dof2 dof
+    plot ldata chi
+
+# Perform an F-test (for the hell of it!)
+
+    ftest $chi2 $dof2 $chi1 $dof1
+    tclout ftest
+    set fprob $xspec_tclout
+
+# Put the chi-square and DOF of each fit into file
+
+    puts $fileout "Ftest: $chi1 $dof1 $chi2 $dof2 $fprob"
+
+# IF the F-test dictates addition of gauss, save the new model and write down the necessary information
+
+# discuss this with Greg, what would be a good values
+
+   if {[expr abs($fprob)] < 0.005} {
+    
+   shakefit $fileout
+
+   save model fit_p_smpowerdiskgaussnhfx.xcm
+
+# eqwidth of gauss line, take a note of it
+
+   eqw 5
+
+   tclout eqwidth
+
+   puts $fileout "eqw: $xspec_tclout"
+
+#  calculate the fluxes
+
+   flux 3. 25. err
+   tclout flux
+   array set absflux {}
+   for {set i 0} {$i < 3} {incr i} {
+       set absflux($i) [lindex $xspec_tclout $i]
+       }
+   puts $fileout "3_25abs $absflux(0) $absflux(1) $absflux(2)"
+
+   delc 1
+ 
+   flux 3. 25. noerr
+   tclout flux
+   set unabs [lindex $xspec_tclout 0]
+   puts $fileout "3_25unabs $unabs"
+
+   tclout modcomp
+   set nopar $xspec_tclout
+  
+   delc $nopar
+
+   flux 3. 25. noerr
+   tclout flux
+   set unabspd [lindex $xspec_tclout 0]
+   
+   set rmnum [expr $nopar-1]
+   delc $rmnum
+
+   flux 3. 25. noerr
+   tclout flux
+   set unabsp [lindex $xspec_tclout 0]
+   
+   puts $fileout "3_25plf $unabsp"
+   set unabsdb [expr $unabspd-$unabsp]
+   puts $fileout "3_25dbb $unabsdb"
+}
+
+
+#   Reset everything
+
+    data none
+    model none
+
+# Close the file.
+
+  close $fileout
+
+# end of script
+
+
+
+ 
