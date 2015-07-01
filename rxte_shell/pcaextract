@@ -1,0 +1,286 @@
+#!/usr/bin/perl
+
+#
+# $Log: pcaextract,v $
+# Revision 1.11  2008-09-16 16:18:09  wilms
+# removing printout of extract command to be used
+#
+# Revision 1.10  2007/03/01 09:23:14  wilms
+# added option to run eaextract
+# now only do extraction for a pcu combination if it is on for 4.5
+# minutes or more
+#
+#
+# Version 1.6: 2000.11.30, KP: added description of full keyword
+# Version 1.7: 2000.12.04, KP: added description of nopcu0 keyword
+# Version 1.8: 2000.12.29, JW: now stderr from pca_standard is also
+#   captured in the logfile
+# Version 1.9: 2001.03.27, JW: check for existence of FMI file and
+#   abort if it does not exist.
+#
+
+# get nicer system variables
+use English;
+
+# be strict
+use strict;
+
+use Getopt::Long qw(:config pass_through);
+
+my $achtung="%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%";
+
+if ( @ARGV == 0 )   {
+    print $achtung,"\n";
+    print "Syntax:\n"; 
+    print "pcaextract obsid obspath dirname \[optional arguments\]\n";
+    print "\n";
+    print "where: \n";
+    print "\n";
+    print "obsid  : Observation ID (e.g., 10241-01-01-00)\n";
+    print "obspath: Path to obs  (e.g., /xtearray/FD/AO1/P10241)\n";
+    print "dirname: subdirectory to contain extraced data (e.g., 01.00)\n";
+    print "The optional arguments can be all arguments allowed for\n";
+    print "pca_standard or eaextract, WITH THE EXCEPTION OF THE PCU\n";
+    print "SELECTION ARGUMENTS (see below).\n";
+    print "Please refer to the description of these tools for further\n";
+    print "information.\n";
+    print "If the -ea-Argument is given, this script invokes eaextract\n";
+    print "otherwise, pca_standard is used.\n";
+    print "To do the data extraction two possible ways are implemented:\n";
+    print "* No PCU selection arguments (-1off etc., -exclusive) given:\n";
+    print "  All possible PCU combinations present in the observation are\n";
+    print "  extracted if they were on for longer than 4.5 minutes\n";
+    print "* --0only, --1only, --2only, --3only, --4only:\n";
+    print "  Data from ONE PCU are extracted, irrespective of the status of\n";
+    print "  The other PCUs. Note the DOUBLE MINUS SIGNS!\n";
+    print "\n";
+    print $achtung,"\n";
+
+    exit;
+}
+
+my $only0=0;
+my $only1=0;
+my $only2=0;
+my $only3=0;
+my $only4=0;
+
+
+my $args=GetOptions("0only" => \$only0,
+                    "1only" => \$only1,
+		    "2only" => \$only2,
+		    "3only" => \$only3,
+		    "4only" => \$only4);
+
+if ($only0+$only1+$only2+$only3+$only4 > 1) {
+    die "Only one of --0only, --1only, --2only,... arguments is allowed!\n";
+}
+
+my $fileobsid=@ARGV[0];
+my $obspath=@ARGV[1];
+my $fullpath="$obspath/$fileobsid";
+my $working_dir=@ARGV[2];
+my @extractarg=@ARGV[3..$#ARGV];
+my $fmifile="$fullpath/FMI";
+my $obsid;
+if ( -e $fmifile ) {
+    $obsid=`fdump $fmifile prhead=no column=obsid row=1 out=STDOUT showcol=no showrow=no | grep "-"`;
+    chomp ($obsid);
+} else {
+    die "${fmifile} does not exist. Aborted.\n";
+}
+
+my $extracting=1;
+my $tools = $ENV{"XTETOOLS"};
+my $pca_standard = "$tools/pca_standard";
+my $eaextract = "$tools/eaextract";
+my $eaex='';
+
+my $logging=0;
+
+$logging=1;
+
+my $extractcmd=$pca_standard;
+
+# check whether event analyzer is desired. In this case: use eaextract
+foreach my $aaa ( @extractarg ) {
+    if ( $aaa =~ /$\-ea=/ ) {
+	$extractcmd=$eaextract;
+	$eaex=(split(/=/,$aaa))[1];
+	if ( $eaex eq '-1' ) {
+	    $eaex='GoodXenon';
+	} else {
+	    $eaex="ea${eaex}";
+	}
+    }
+}
+
+open(STDOUT, ">logfile");
+
+if ($only0+$only1+$only2+$only3+$only4 eq 1) {
+    #
+    # special code for PCU only selection
+    # (i.e., we do not have to find all PCU combinations)
+    #
+    my $pcustring;
+    $pcustring="-1off -2off -3off -4off" if ($only0);
+    $pcustring="-0off -2off -3off -4off" if ($only1);
+    $pcustring="-0off -1off -3off -4off" if ($only2);
+    $pcustring="-0off -1off -2off -4off" if ($only3);
+    $pcustring="-0off -1off -2off -3off" if ($only4);
+
+    my $logstring=$working_dir;
+
+    $logstring.=".0only" if ($only0);
+    $logstring.=".1only" if ($only1);
+    $logstring.=".2only" if ($only2);
+    $logstring.=".3only" if ($only3);
+    $logstring.=".4only" if ($only4);
+
+    $logstring .= ".${eaex}" if ( $eaex ne '' );
+    $logstring .= ".log";
+
+    print STDOUT "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n";
+    print STDOUT "EXTRACTING $pcustring\n";
+    print STDOUT "Logfile $logstring\n";
+    print STDOUT "extract arguments: @extractarg";
+
+    my $extract="$extractcmd $fileobsid $obspath $working_dir ";
+    $extract .= "$pcustring ";
+    $extract .= "@extractarg";
+
+    print STDOUT "Command: \n $extract\n";
+
+    open (LOG, ">$logstring" ) || die "Cannot open logfile: $!\n";
+
+    open (EXTRACT,"$extract 2>&1 |") || die "Cannot execute command: $!\n";
+    while (my $line = <EXTRACT>) {
+	print LOG $line;
+	print STDOUT $line if ($logging);
+    }
+    close(EXTRACT);
+    close(LOG);
+
+    close(STDOUT);
+
+    exit;
+}
+
+######### selection of PCU combinations and extraction of all
+######### PCU combinations
+
+-d $working_dir || mkdir $working_dir,0777;
+chdir($working_dir) || die "Can not change to $working_dir\n";
+
+-d "filter" || mkdir "filter",0777;
+chdir "filter" || die "Can not change to filter subdirectory\n";
+
+#
+# From here on: work in observation/filter 
+#
+
+#
+# Get the correct appidlist
+#
+symlink "$tools/appidlist","./appidlist";
+
+#
+# Generate the Filterfile
+#
+my @filter=<*.xfl>;
+
+if ( $#filter == -1 ) {
+    print STDOUT "GENERATING FILTER FILE\n";
+    system "xtefilt -o $obsid -p $fullpath -a appidlist -b CALDB -t16 -c yes";
+
+    @filter=<*.xfl>;
+}
+
+( $#filter == 0 ) || die "More than one filter file found";
+my $filter=@filter[0];
+
+#
+# Read Detector combinations
+#
+
+my $cmd= "fdump infile=$filter+1 outfile=STDOUT"
+    . " columns=\"PCU0_ON PCU1_ON PCU2_ON PCU3_ON PCU4_ON\" rows=-"
+    . " prhead=no prdata=yes showcol=no showunit=no showrow=no "
+    . " showscale=yes page=no";
+
+my %combinations;
+
+open (PCULIST,"$cmd |");
+while (my $line = <PCULIST>) {
+    my @pcu=split(" ",$line);
+
+    # only use valid lines
+    if ( $#pcu == 4 ) {
+	my $key="@pcu[0..4]";
+	$combinations{$key}=$combinations{$key}+1;
+    }
+}
+close(PCULIST);
+
+chdir "../.." || die "Can not change back to original subdirectory: $!\n";
+
+system "punlearn fdump";
+
+#
+# Find all PCU combinations that occured in the filter file
+# Extract those that occured more than 30 times (i.e., for longer
+# than 4.5 minutes), and where no INDEF was present
+#
+
+
+my @comb=keys %combinations;
+my $pcustring;
+my $logstring;
+foreach my $c (@comb) {
+    $pcustring="";
+    $logstring=$working_dir;
+
+    unless ( ($c =~ /INDEF/)
+	     || ($combinations{$c}<=30)
+	     || ($c eq "0 0 0 0 0") ) {
+	if ( $c eq "1 1 1 1 1" ) {
+	    $pcustring="-all";
+	} else {
+	    my @pcu=split(" ",$c);
+	    $logstring .=".";
+	    for ( my $p=0; $p<5; $p++ ) {
+		if ( $pcu[$p] == 0 ) {
+		    $pcustring .= " -${p}off";
+		    $logstring .= $p;
+	        }
+	    }
+	    $logstring .= "off";
+	}
+	$logstring .= ".${eaex}" if ( $eaex ne '' );
+
+	$logstring .= ".log";
+
+	print STDOUT "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n";
+	print STDOUT "EXTRACTING $pcustring\n";
+	print STDOUT "Logfile $logstring\n";
+
+	my $extract="$extractcmd $fileobsid $obspath $working_dir ";
+	$extract .= "$pcustring -exclusive ";
+	$extract .= "@extractarg";
+
+	print STDOUT "Command: \n $extract\n";
+
+	open (LOG, ">$logstring" ) || die "Cannot open logfile: $!\n";
+	open (EXTRACT,"$extract 2>&1 |") || die "Cannot execute command: $!\n";
+	while (my $line = <EXTRACT>) {
+	    print LOG $line;
+	    print STDOUT $line if ($logging);
+	}
+	close(EXTRACT);
+	close(LOG);
+    }
+}
+
+close(STDOUT);
+
+exit;
