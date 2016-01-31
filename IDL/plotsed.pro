@@ -54,6 +54,9 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; ADDED a script to write down flux densities in a text file to be
 ;used with flx2xsp
 ;
+; fixed a syntax error about nnu
+;
+; Jan 30 2016 fixed problems about crflxtxt
 ;
 
 IF NOT keyword_set(ps) THEN ps=0
@@ -62,7 +65,12 @@ IF NOT keyword_set(plote) THEN plote=0
 IF NOT keyword_set(vfv) THEN vfv=0
 IF NOT keyword_set(opltbb) THEN opltbb=0
 IF NOT keyword_set(strip) THEN strip=0
-IF NOT keyword_set(nxr) THEN nxr=[1E9,1E15]
+IF NOT keyword_set(crflxtxt) THEN crflxtxt=0
+
+IF NOT keyword_set(nxr) THEN BEGIN
+   IF plote THEN nxr=[4e-6, 2.6] ELSE nxr=[1E9,1E15]
+ENDIF
+
 IF NOT keyword_set(inT) THEN inT=8000.
 IF NOT keyword_set(fixind) THEN fixind=0
 
@@ -177,7 +185,6 @@ IF keyword_set(fluxrad) THEN BEGIN
    wradio=1
 ENDIF ELSE wradio=0
 
-crflxtxt=1
 IF crflxtxt THEN BEGIN
    fils=file_search('.','forxspec*', count=nxfil)
    ;version 1
@@ -200,6 +207,10 @@ IF crflxtxt THEN BEGIN
         filsr=file_search('.','rforxspec*', count=nxfil)
         openw, 1, 'rforxspec'+strtrim(string(nxfil),1)+'.txt'
         srt=sort(nuall[0,0:nel-1])
+        ;MAGIC NUMBERS! FIX THIS - THIS SEEMS INCORRECT, DO NOT USE
+;        delf=freqrad
+;        IF N_ELEMENTS(delf) GT 1 THEN BEGIN
+;           FOR dind=1, N_ELEMENTS(delf)-1 DO delf[dind
         delf=[1.425,4.86-2*(1.425), (8.46-4.86)-(4.86-2*(1.425))]*1e-9
        FOR ni=0,nel-1 DO BEGIN
            printf,1,strtrim(string(nuall[0,srt[ni]]-delf[ni]),1)+' '+$
@@ -213,7 +224,7 @@ IF crflxtxt THEN BEGIN
    openw, 1, 'oiforxspec'+strtrim(string(nxfil),1)+'.txt'
    srt=sort(nuall[0,nel:i+nel-1])
    delf=[0.518,0.518,0.841,0.905,0408]*1e14
-   nnu=[1.364,2.4,3.759.5.505,6.818]*1e14
+   nnu=[1.364,2.4,3.759,5.505,6.818]*1e14
    FOR ni=0,i-1 DO BEGIN
       IF (ni eq 0) THEN delf[ni]=(nuall[0,nel+srt[ni+1]]-nuall[0,nel+srt[ni]])/2. 
       IF (ni eq 1) THEN delf[ni]=delf[ni-1]
