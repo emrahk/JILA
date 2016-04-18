@@ -57,6 +57,7 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; fixed a syntax error about nnu
 ;
 ; Jan 30 2016 fixed problems about crflxtxt
+; changed magic number 0.08 to fixed index of 0 as flat spectrum
 ;
 
 IF NOT keyword_set(ps) THEN ps=0
@@ -66,6 +67,8 @@ IF NOT keyword_set(vfv) THEN vfv=0
 IF NOT keyword_set(opltbb) THEN opltbb=0
 IF NOT keyword_set(strip) THEN strip=0
 IF NOT keyword_set(crflxtxt) THEN crflxtxt=0
+
+indf=0. ;fixed index is flat spectrum.... think about this later
 
 IF NOT keyword_set(nxr) THEN BEGIN
    IF plote THEN nxr=[4e-6, 2.6] ELSE nxr=[1E9,1E15]
@@ -295,7 +298,7 @@ IF strip THEN ploterror, enall[0,xx],enall[0,xx]*fluxall[0,xx],$
             IF fixind THEN BEGIN
                 oplot, h*R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, h*R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(0.08)), line=1
+                oplot, h*R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indf)), line=1
              ENDIF ELSE BEGIN
                 oplot, h*R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -333,7 +336,7 @@ IF strip THEN ploterror, nuall[0,xx],nuall[0,xx]*fluxall[0,xx], $
             IF fixind THEN BEGIN
                 oplot, R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(0.08)), line=1
+                oplot, R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indf)), line=1
              ENDIF ELSE BEGIN
                 oplot, R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -376,7 +379,7 @@ ENDIF ELSE BEGIN
             IF fixind THEN BEGIN
                 oplot, h*R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, h*R.freqs, (R.R1[0,2]*R.freqs^(0.08)), line=1
+                oplot, h*R.freqs, (R.R1[0,2]*R.freqs^(indf)), line=1
              ENDIF ELSE BEGIN
                 oplot, h*R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -410,7 +413,7 @@ ENDIF ELSE BEGIN
             IF fixind THEN BEGIN
                 oplot, R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, R.freqs, (R.R1[0,2]*R.freqs^(0.08)), line=1
+                oplot, R.freqs, (R.R1[0,2]*R.freqs^(indf)), line=1
              ENDIF ELSE BEGIN
                 oplot, R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1

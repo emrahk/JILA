@@ -1,7 +1,7 @@
 pro plmulsed, inpstr, inx, mjds, plotrad=plotrad, plotx=plotx, ct=tc, $
                  ps=ps, fname=namef, plote=plote, vfv=vfv, $
                  rband=oiband, rflux=oiflux, opltsed=opltsed, yrn=nyr, $
-              Tin=inT, fixind=indfix, xrn=nxr, auto=auto
+              Tin=inT, fixind=indfix, xrn=nxr, auto=auto, fres=resf
 
 ;This program plots SEDs of given observation dates. If asked, checks
 ;radio and X-ray observations within ct and plots them as well.
@@ -23,7 +23,7 @@ pro plmulsed, inpstr, inx, mjds, plotrad=plotrad, plotx=plotx, ct=tc, $
 ; ct: contamperanous time to search for multiwavelength data
 ; opltsed: if set, plot the best fit blackbody spectrum to the OIR SED 
 ; Tin: set of initial temperatures
-; fixind: array that indicates if the index is fixed
+; fixind: array that indices if the index is fixed
 ; auto: use the best fir automatically
 ; ps: postscript output
 ; fname: optional name of the postscript output
@@ -31,10 +31,14 @@ pro plmulsed, inpstr, inx, mjds, plotrad=plotrad, plotx=plotx, ct=tc, $
 ; vfv: nu - f - nu plot, multiply fluxes by frequencies
 ; yrn: new yrange 
 ; xrn: new xrange
+; fres: structure for fit results
 ;
 ; LOGS
 ;
 ; Created by E. Kalemci May, 2015
+;
+; April 2016, forgot intialization of auto keyword 
+; April 2016, fres keyword added to keep track of fit results
 ;
 
 
@@ -50,6 +54,7 @@ IF NOT keyword_set(usecol) THEN usecol=0
 IF NOT keyword_set(nxr) THEN nxr=[1E9,1E15]
 IF NOT keyword_set(inT) THEN inT=replicate(8000.,n_elements(mjds))
 IF NOT keyword_set(indfix) THEN indfix=intarr(n_elements(mjds))
+IF NOT keyword_set(auto) THEN auto=0
 
 device,decomposed=0
 IF usecol THEN BEGIN
@@ -172,12 +177,12 @@ IF cont THEN BEGIN
          plotsed, oiflux, oiband, radflux=fluxrad, radfreq=freqrad, ps=ps, $ 
                   fname=namef, plote=plote, vfv=vfv, opltsed=opltsed, $
                   mjd=mjds[j], yrn=nyr, Tin=inT[j], /strip, $
-                  fixind=indfix[j], xrn=nxr ELSE $
+                  fixind=indfix[j], xrn=nxr, res=fitres ELSE $
                      plotsed, oiflux, oiband, radflux=fluxrad, $
                               radfreq=freqrad, ps=ps, fname=namef, $
                               plote=plote, vfv=vfv, opltsed=opltsed, $
                               mjd=mjds[j],fixind=indfix[j], xrn=nxr, $
-                              /strip, Tin=inT[j]
+                              /strip, Tin=inT[j], res=fitres
 
    ENDIF
 
@@ -185,17 +190,21 @@ IF cont THEN BEGIN
 
       IF keyword_set(nyr) THEN $
          plotsed, oiflux, oiband, ps=ps, fname=namef, $
-                  plote=plote, vfv=vfv, opltsed=opltsed, $
+                  plote=plote, vfv=vfv, opltsed=opltsed, res=fitres, $
                   mjd=mjds[j], yrn=nyr,/strip, Tin=inT[j], xrn=nxr ELSE $
                       plotsed, oiflux, oiband, ps=ps, fname=namef, $
-                  plote=plote, vfv=vfv, opltsed=opltsed, $
+                  plote=plote, vfv=vfv, opltsed=opltsed, res=fitres, $
                   mjd=mjd,/strip,  Tin=inT[j], xrn=nxr
 
    ENDIF
 
 multiplot
 ENDIF
+
+IF (j EQ 0) THEN resf=replicate(fitres, nrows) ELSE resf[j]=fitres
+
 ENDFOR
+
 
 multiplot,/default
 IF ps THEN BEGIN
