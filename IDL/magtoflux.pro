@@ -94,11 +94,10 @@ IF cont THEN BEGIN
 ;from O'Donnell
 
 
-   print, AV, AJ, AH, AK, AB, AI
+;   print, AV, AJ, AH, AK, AB, AI
 
    ;dereddened magnitudes, and fluxes
 
-   flux=mags
 
    CASE band OF
       'B' : BEGIN
