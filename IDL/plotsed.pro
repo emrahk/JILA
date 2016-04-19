@@ -63,6 +63,8 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; changed magic number 0.08 to fixed index of 0 as flat spectrum
 ;
 ; Jan 30, made the index externally supplied one
+; April 2016, fixed magic number problem in creating flux text
+;
 
 IF NOT keyword_set(ps) THEN ps=0
 IF NOT keyword_set(namef) THEN namef='sed.eps'
@@ -226,17 +228,16 @@ IF crflxtxt THEN BEGIN
    ENDFOR
    close,1
 
-   ;version 2
+                                ;version 2, going from end of one freq
+                                ;to another, not correct in my view
    IF wradio THEN BEGIN
         filsr=file_search('.','rforxspec*', count=nxfil)
         openw, 1, 'rforxspec'+strtrim(string(nxfil),1)+'.txt'
         srt=sort(nuall[0,0:nel-1])
-        ;MAGIC NUMBERS! FIX THIS - THIS SEEMS INCORRECT, DO NOT USE
-;        delf=freqrad
-;        IF N_ELEMENTS(delf) GT 1 THEN BEGIN
-;           FOR dind=1, N_ELEMENTS(delf)-1 DO delf[dind
-        delf=[1.425,4.86-2*(1.425), (8.46-4.86)-(4.86-2*(1.425))]*1e-9
-       FOR ni=0,nel-1 DO BEGIN
+        delf=fltarr(nel)
+        delf[0]=nuall[0]
+        FOR dk=1,nel-1 DO delf[dk]=(nuall[0,dk]-nuall[0,dk-1])-delf[dk-1]
+        FOR ni=0,nel-1 DO BEGIN
            printf,1,strtrim(string(nuall[0,srt[ni]]-delf[ni]),1)+' '+$
              strtrim(string(nuall[0,srt[ni]]+delf[ni]),1)+' '+$
              strtrim(string(fluxall[0,srt[ni]]*1e-3),1)+' '+$
