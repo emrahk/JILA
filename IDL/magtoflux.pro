@@ -22,6 +22,8 @@ pro magtoflux, mags, band, flux,  NH=NHc, EBmV=EBV
 ;
 ; Created by Emrah Kalemci Feb 18, 2015
 ;
+; changed the way flux variable created.
+;
 
 cont=1
 IF (keyword_set(NHc) AND keyword_set(EBV)) THEN BEGIN
@@ -98,6 +100,9 @@ IF cont THEN BEGIN
 
    ;dereddened magnitudes, and fluxes
 
+;create flux variable
+sz=size(mags)
+IF sz(0) EQ 1 THEN flux=dblarr(2) ELSE flux=dblarr(2,sz(2))
 
    CASE band OF
       'B' : BEGIN
