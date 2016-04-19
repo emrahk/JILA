@@ -1,7 +1,8 @@
 pro plmulsed, inpstr, inx, mjds, plotrad=plotrad, plotx=plotx, ct=tc, $
                  ps=ps, fname=namef, plote=plote, vfv=vfv, $
                  rband=oiband, rflux=oiflux, opltsed=opltsed, yrn=nyr, $
-              Tin=inT, fixind=indfix, xrn=nxr, auto=auto, fres=resf
+              Tin=inT, fixind=indfix, xrn=nxr, auto=auto, fres=resf, $
+              incqsc=incqsc, extind=indext
 
 ;This program plots SEDs of given observation dates. If asked, checks
 ;radio and X-ray observations within ct and plots them as well.
@@ -39,7 +40,8 @@ pro plmulsed, inpstr, inx, mjds, plotrad=plotrad, plotx=plotx, ct=tc, $
 ;
 ; April 2016, forgot intialization of auto keyword 
 ; April 2016, fres keyword added to keep track of fit results
-;
+; April 2016, added incqsc to include quiescence fluxes if necessary
+; April 2016, added indext to provide an external index for radio
 
 
 IF NOT keyword_set(plotrad) THEN plotrad=0
@@ -55,6 +57,8 @@ IF NOT keyword_set(nxr) THEN nxr=[1E9,1E15]
 IF NOT keyword_set(inT) THEN inT=replicate(8000.,n_elements(mjds))
 IF NOT keyword_set(indfix) THEN indfix=intarr(n_elements(mjds))
 IF NOT keyword_set(auto) THEN auto=0
+IF NOT keyword_set(incqsc) THEN incqsc=0
+IF NOT keyword_set(indext) THEN indext=fltarr(n_elements(mjds))
 
 device,decomposed=0
 IF usecol THEN BEGIN
@@ -176,14 +180,14 @@ IF cont THEN BEGIN
       IF keyword_set(nyr) THEN $
          plotsed, oiflux, oiband, radflux=fluxrad, radfreq=freqrad, ps=ps, $ 
                   fname=namef, plote=plote, vfv=vfv, opltsed=opltsed, $
-                  mjd=mjds[j], yrn=nyr, Tin=inT[j], /strip, $
-                  fixind=indfix[j], xrn=nxr, res=fitres ELSE $
+                  mjd=mjds[j], yrn=nyr, Tin=inT[j], /strip, extind=indext[j], $
+                  fixind=indfix[j], xrn=nxr, res=fitres, incqsc=incqsc ELSE $
                      plotsed, oiflux, oiband, radflux=fluxrad, $
                               radfreq=freqrad, ps=ps, fname=namef, $
                               plote=plote, vfv=vfv, opltsed=opltsed, $
                               mjd=mjds[j],fixind=indfix[j], xrn=nxr, $
-                              /strip, Tin=inT[j], res=fitres
-
+                             /strip, Tin=inT[j], res=fitres, extind=indext[j], $
+                              incqsc=incqsc
    ENDIF
 
    IF ((NOT plotrad) AND (not plotx)) THEN BEGIN
@@ -191,10 +195,12 @@ IF cont THEN BEGIN
       IF keyword_set(nyr) THEN $
          plotsed, oiflux, oiband, ps=ps, fname=namef, $
                   plote=plote, vfv=vfv, opltsed=opltsed, res=fitres, $
-                  mjd=mjds[j], yrn=nyr,/strip, Tin=inT[j], xrn=nxr ELSE $
+                  mjd=mjds[j], yrn=nyr,/strip, Tin=inT[j], xrn=nxr,$
+                  incqsc=incqsc, extind=indext[j] ELSE $
                       plotsed, oiflux, oiband, ps=ps, fname=namef, $
                   plote=plote, vfv=vfv, opltsed=opltsed, res=fitres, $
-                  mjd=mjd,/strip,  Tin=inT[j], xrn=nxr
+                  mjd=mjd,/strip,  Tin=inT[j], xrn=nxr, $
+                 incqsc=incqsc, extind=indext[j]
 
    ENDIF
 

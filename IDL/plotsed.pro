@@ -1,7 +1,7 @@
 pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
              ps=ps, fname=namef, plote=plote, vfv=vfv, opltsed=opltsed, $
              mjd=omjd, yrn=nyr, xrn=nxr, strip=strip, fixind=fixind, $
-             Tin=inT, res=R, crflxtxt=crflxtxt
+             Tin=inT, res=R, crflxtxt=crflxtxt, extind=indext, incqsc=incqsc
 
 ;This program plots SED of given fluxes in given bands. IF rxte
 ;spectra file output is given, it also plots RXTE data. Similarly if
@@ -35,7 +35,10 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; strip: if set, part of another plotting program
 ; Tin: initial parameter for blackbody temperature
 ; fixind: IF set. fix the index of radio spectrum
+; extind: index of fix radio power law
 ; crflxtxt: IF set, create a txt file that will be input to flx2xsp
+; incqsc: IF set, include quiescence flux
+;
 ; LOGS
 ;
 ; Created by E. Kalemci Feb 22, 2015
@@ -59,6 +62,7 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; Jan 30 2016 fixed problems about crflxtxt
 ; changed magic number 0.08 to fixed index of 0 as flat spectrum
 ;
+; Jan 30, made the index externally supplied one
 
 IF NOT keyword_set(ps) THEN ps=0
 IF NOT keyword_set(namef) THEN namef='sed.eps'
@@ -67,8 +71,8 @@ IF NOT keyword_set(vfv) THEN vfv=0
 IF NOT keyword_set(opltbb) THEN opltbb=0
 IF NOT keyword_set(strip) THEN strip=0
 IF NOT keyword_set(crflxtxt) THEN crflxtxt=0
-
-indf=0. ;fixed index is flat spectrum.... think about this later
+IF NOT keyword_set(incqsc) THEN incqsc=0
+IF NOT keyword_set(indext) THEN indext=0.
 
 IF NOT keyword_set(nxr) THEN BEGIN
    IF plote THEN nxr=[4e-6, 2.6] ELSE nxr=[1E9,1E15]
@@ -96,6 +100,17 @@ ENDIF
 
 nu=fltarr(2,n_elements(band))
 wave=fltarr(n_elements(band))
+fluxoi=flux
+
+IF incqsc THEN BEGIN
+   magtoflux, [18.72,0.], 'B', qscb, EBmV=[1.3,0.1] ;18.8
+   magtoflux, [17.12,0.], 'V', qscv, EBmV=[1.3,0.1] ;17.2
+   magtoflux, [15.1,0.], 'I', qsci, EBmV=[1.3,0.1] ;15.1
+   magtoflux, [13.84,0.], 'J', qscj, EBmV=[1.3,0.1] ;13.9
+   magtoflux, [13.25,0.], 'K', qsck, EBmV=[1.3,0.1] ;13.3
+   qsch=0.
+ENDIF
+
 FOR i=0, n_elements(band)-1 DO BEGIN
 
 CASE band[i] OF
@@ -107,6 +122,7 @@ CASE band[i] OF
       frerr=(1.325-1.166)/(2.*1.25) ;um
       nu[0,i]=frJ
       nu[1,i]=frJ*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qscj[0]
    END
 
 ;dino
@@ -118,6 +134,7 @@ CASE band[i] OF
       frerr=(1.780-1.486)/(2.*1.65)
       nu[0,i]=frH
       nu[1,i]=frH*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qsch[0]
       END
 
    'K': BEGIN
@@ -127,6 +144,7 @@ CASE band[i] OF
       frerr=(2.284-1.996)/(2.*2.2)
       nu[0,i]=frK
       nu[1,i]=frK*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qsck[0]
    END
 
    'B': BEGIN
@@ -136,6 +154,7 @@ CASE band[i] OF
       frerr=(50./440.) ;nm
       nu[0,i]=frB
       nu[1,i]=frB*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qscb[0]
    END
 
    'V': BEGIN
@@ -145,6 +164,7 @@ CASE band[i] OF
       frerr=(50./545.) ;nm
       nu[0,i]=frV
       nu[1,i]=frV*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qscv[0]
    END
 
 ;   'R': BEGIN
@@ -160,6 +180,7 @@ CASE band[i] OF
       frerr=(90./798.);
       nu[0,i]=frI
       nu[1,i]=frI*frerr
+      IF incqsc THEN fluxoi[0,i]=fluxoi[0,i]-qsci[0]
    END
 
 ENDCASE
@@ -169,7 +190,7 @@ ENDFOR
 h=4.136D-15             ;eV s
 nuall=nu 
 enall=h*nu
-fluxall=flux
+fluxall=fluxoi
 
 nel=0
 IF keyword_set(fluxrad) THEN BEGIN
@@ -184,7 +205,7 @@ IF keyword_set(fluxrad) THEN BEGIN
    enall[*,nel:i+nel-1]=h*nu
    fluxall=fltarr(2,i+nel)
    fluxall[*,0:nel-1]=fluxrad
-   fluxall[*,nel:i+nel-1]=flux
+   fluxall[*,nel:i+nel-1]=fluxoi
    wradio=1
 ENDIF ELSE wradio=0
 
@@ -252,11 +273,20 @@ ENDIF
 IF opltsed THEN BEGIN 
    IF wradio THEN fit_plot_sed, band, flux, R, $
    rfreq=freqrad/1D9, rflux=fluxrad, Tin=inT, /noplt, $
-   wradio=wradio, fixind=fixind ELSE $
+   wradio=wradio, fixind=fixind, extind=indext, incqsc=incqsc ELSE $
      fit_plot_sed, band, flux, R, $
-      Tin=inT, /noplt 
+      Tin=inT, /noplt, incqsc=incqsc
 ENDIF
 
+;prepare to remove quiescence levels if necessary
+
+IF incqsc THEN BEGIN
+   magtoflux, [18.8,0.], 'B', qscb, EBmV=[1.3,0.1]
+   magtoflux, [17.2,0.], 'V', qscv, EBmV=[1.3,0.1]
+   magtoflux, [15.1,0.], 'I', qsci, EBmV=[1.3,0.1]
+   magtoflux, [13.9,0.], 'J', qscj, EBmV=[1.3,0.1]
+   magtoflux, [13.3,0.], 'K', qsck, EBmV=[1.3,0.1]
+ENDIF
 
 ; now we can plot everything
 
@@ -298,7 +328,7 @@ IF strip THEN ploterror, enall[0,xx],enall[0,xx]*fluxall[0,xx],$
             IF fixind THEN BEGIN
                 oplot, h*R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, h*R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indf)), line=1
+                oplot, h*R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indext)), line=1
              ENDIF ELSE BEGIN
                 oplot, h*R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -336,7 +366,7 @@ IF strip THEN ploterror, nuall[0,xx],nuall[0,xx]*fluxall[0,xx], $
             IF fixind THEN BEGIN
                 oplot, R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indf)), line=1
+                oplot, R.freqs, R.freqs*(R.R1[0,2]*R.freqs^(indext)), line=1
              ENDIF ELSE BEGIN
                 oplot, R.freqs, R.freqs*(R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -379,7 +409,7 @@ ENDIF ELSE BEGIN
             IF fixind THEN BEGIN
                 oplot, h*R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, h*R.freqs, (R.R1[0,2]*R.freqs^(indf)), line=1
+                oplot, h*R.freqs, (R.R1[0,2]*R.freqs^(indext)), line=1
              ENDIF ELSE BEGIN
                 oplot, h*R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
@@ -413,7 +443,7 @@ ENDIF ELSE BEGIN
             IF fixind THEN BEGIN
                 oplot, R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
-                oplot, R.freqs, (R.R1[0,2]*R.freqs^(indf)), line=1
+                oplot, R.freqs, (R.R1[0,2]*R.freqs^(indext)), line=1
              ENDIF ELSE BEGIN
                 oplot, R.freqs, (R.R1[0,0]*planckf(R.freqs,R.R1[0,1])), $
                        line=1
