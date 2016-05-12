@@ -1,7 +1,8 @@
 pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
              ps=ps, fname=namef, plote=plote, vfv=vfv, opltsed=opltsed, $
              mjd=omjd, yrn=nyr, xrn=nxr, strip=strip, fixind=fixind, $
-             Tin=inT, res=R, crflxtxt=crflxtxt, extind=indext, incqsc=incqsc
+             Tin=inT, res=R, crflxtxt=crflxtxt, extind=indext, $
+             incqsc=incqsc, oplqsc=oplqsc, exfreq=freqex
 
 ;This program plots SED of given fluxes in given bands. IF rxte
 ;spectra file output is given, it also plots RXTE data. Similarly if
@@ -38,6 +39,9 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ; extind: index of fix radio power law
 ; crflxtxt: IF set, create a txt file that will be input to flx2xsp
 ; incqsc: IF set, include quiescence flux
+; oplqsc: alternative mothod of showing quiescence emission is to
+;         overplot it
+; exfreq: if set, exclude these frequencies
 ;
 ; LOGS
 ;
@@ -64,7 +68,11 @@ pro plotsed, flux, band, rxtef=rxtef, radflux=fluxrad, radfreq=freqrad, $
 ;
 ; Jan 30, made the index externally supplied one
 ; April 2016, fixed magic number problem in creating flux text
-;
+; April 2016, fixed magic number in oplotting date
+; May 2016, changed plot symbol, made symbols larger
+; May 2016, oplqsc added to avoid subtractinq quiescence flux
+; May 2016, exfreq keyword added, only removes from fitting, not plot
+
 
 IF NOT keyword_set(ps) THEN ps=0
 IF NOT keyword_set(namef) THEN namef='sed.eps'
@@ -75,6 +83,8 @@ IF NOT keyword_set(strip) THEN strip=0
 IF NOT keyword_set(crflxtxt) THEN crflxtxt=0
 IF NOT keyword_set(incqsc) THEN incqsc=0
 IF NOT keyword_set(indext) THEN indext=0.
+IF NOT keyword_set(oplqsc) THEN oplqsc=0
+IF NOT keyword_set(freqex) THEN freqex=0
 
 IF NOT keyword_set(nxr) THEN BEGIN
    IF plote THEN nxr=[4e-6, 2.6] ELSE nxr=[1E9,1E15]
@@ -104,7 +114,7 @@ nu=fltarr(2,n_elements(band))
 wave=fltarr(n_elements(band))
 fluxoi=flux
 
-IF incqsc THEN BEGIN
+IF (incqsc OR oplqsc) THEN BEGIN
    magtoflux, [18.72,0.], 'B', qscb, EBmV=[1.3,0.1] ;18.8
    magtoflux, [17.12,0.], 'V', qscv, EBmV=[1.3,0.1] ;17.2
    magtoflux, [15.1,0.], 'I', qsci, EBmV=[1.3,0.1] ;15.1
@@ -265,29 +275,17 @@ IF crflxtxt THEN BEGIN
    close,1
 ENDIF
 
-
-
 IF keyword_set(rxtef) THEN BEGIN
    ;this part will be implemented later
 ENDIF
-
 IF opltsed THEN BEGIN 
-   IF wradio THEN fit_plot_sed, band, flux, R, $
+   IF wradio THEN fit_plot_sed, band, flux, R, exfreq=freqex, $
    rfreq=freqrad/1D9, rflux=fluxrad, Tin=inT, /noplt, $
    wradio=wradio, fixind=fixind, extind=indext, incqsc=incqsc ELSE $
-     fit_plot_sed, band, flux, R, $
+     fit_plot_sed, band, flux, R, exfreq=freqex, $
       Tin=inT, /noplt, incqsc=incqsc
 ENDIF
 
-;prepare to remove quiescence levels if necessary
-
-IF incqsc THEN BEGIN
-   magtoflux, [18.8,0.], 'B', qscb, EBmV=[1.3,0.1]
-   magtoflux, [17.2,0.], 'V', qscv, EBmV=[1.3,0.1]
-   magtoflux, [15.1,0.], 'I', qsci, EBmV=[1.3,0.1]
-   magtoflux, [13.9,0.], 'J', qscj, EBmV=[1.3,0.1]
-   magtoflux, [13.3,0.], 'K', qsck, EBmV=[1.3,0.1]
-ENDIF
 
 ; now we can plot everything
 
@@ -295,6 +293,8 @@ xx=where(fluxall[1,*] NE -1)
 yy=where(fluxall[1,*] EQ -1)
 
 cs=1.2
+plotsym,0,/fill
+symsz=1.2
 
 IF vfv THEN BEGIN
 
@@ -304,14 +304,14 @@ IF vfv THEN BEGIN
 
 IF strip THEN ploterror, enall[0,xx],enall[0,xx]*fluxall[0,xx],$
                  enall[1,xx],enall[0,xx]*fluxall[1,xx],$
-                 /nohat,/xlog, /ylog, yr=nyr, xr=nxr, $
-                  chars=cs , psym=1, /xstyle, /ystyle ELSE $
+                 /nohat,/xlog, /ylog, yr=nyr, xr=nxr, syms=symsz,$
+                  chars=cs , psym=8, /xstyle, /ystyle ELSE $
       ploterror, enall[0,xx],enall[0,xx]*fluxall[0,xx],$
                  enall[1,xx],enall[0,xx]*fluxall[1,xx],$
                  /nohat,/xlog, /ylog, xtitle='Energy (eV)', yr=nyr, $
-                 ytitle='Energy x Flux (eV*mJy)', chars=cs , psym=1, $
-                 xr=nxr, /xstyle, /ystyle
-;weird units, fix later
+                 ytitle='Energy x Flux (eV*mJy)', chars=cs , psym=8, $
+                 xr=nxr, /xstyle, /ystyle,syms=symsz
+;weird units, fix later, oplotqsc fix later
 
 
       IF yy[0] NE -1 THEN BEGIN
@@ -343,14 +343,14 @@ IF strip THEN ploterror, enall[0,xx],enall[0,xx]*fluxall[0,xx],$
       IF NOT keyword_set(nyr) THEN nyr=[1e8,1e18]
 
 IF strip THEN ploterror, nuall[0,xx],nuall[0,xx]*fluxall[0,xx], $
-                 nuall[1,xx],nuall[0,xx]*fluxall[1,xx], psym=1, $
+                 nuall[1,xx],nuall[0,xx]*fluxall[1,xx], psym=8, $
                          /nohat,/xlog, /ylog, charsize=cs, xr=nxr, $
-                         /xstyle, /ystyle ELSE $
+                         /xstyle, /ystyle, syms=symsz ELSE $
                ploterror, nuall[0,xx],nuall[0,xx]*fluxall[0,xx], $
-                 nuall[1,xx],nuall[0,xx]*fluxall[1,xx], psym=1, xr=nxr, $
+                 nuall[1,xx],nuall[0,xx]*fluxall[1,xx], psym=8, xr=nxr, $
                          /nohat,/xlog, /ylog, xtitle='Frequency (Hz)',$
                          ytitle='Freq. x Flux (Hz x mJy)', charsize=cs, $
-                          /xtyle, /ystyle
+                          /xtyle, /ystyle, syms=symsz
 
       IF yy[0] NE -1 THEN BEGIN
          FOR k=0, N_ELEMENTS(yy)-1 DO BEGIN
@@ -388,11 +388,11 @@ ENDIF ELSE BEGIN
 
      IF strip THEN ploterror, enall[0,xx],fluxall[0,xx],$
                  enall[1,xx],fluxall[1,xx], yr=nyr, xr=nxr, $
-                 /nohat,/xlog, /ylog, psym=1, charsize=cs, $
-                 /xstyle, /ystyle ELSE $
+                 /nohat,/xlog, /ylog, psym=8, charsize=cs, $
+                 /xstyle, /ystyle, syms=symsz ELSE $
       ploterror, enall[0,xx],fluxall[0,xx],$
-                 enall[1,xx],fluxall[1,xx], yr=nyr, xr=nxr, $
-                 /nohat,/xlog, /ylog, psym=1, /xstyle, /ystyle, $
+                 enall[1,xx],fluxall[1,xx], yr=nyr, xr=nxr, syms=symsz, $
+                 /nohat,/xlog, /ylog, psym=8, /xstyle, /ystyle, $
               xtitle='Energy (eV)', ytitle='Flux (mJy)', charsize=cs
       
       IF yy[0] NE -1 THEN BEGIN
@@ -422,11 +422,11 @@ ENDIF ELSE BEGIN
  ENDIF ELSE BEGIN
 
     IF strip THEN ploterror, nuall[0,xx],fluxall[0,xx],nuall[1,xx],$
-                             fluxall[1,xx], /nohat,/xlog, psym=1, yr=nyr, $
+                             fluxall[1,xx], /nohat,/xlog, psym=8, yr=nyr, $
                              xr=nxr, /ylog, charsize=cs, $
-                             /xstyle,  /ystyle   ELSE $
+                             /xstyle,  /ystyle, syms=symsz   ELSE $
        ploterror, nuall[0,xx],fluxall[0,xx],nuall[1,xx],fluxall[1,xx],$
-                         /nohat,/xlog, psym=1, yr=nyr, $
+                         /nohat,/xlog, psym=8, yr=nyr,syms=symsz, $
                          /ylog, xtitle='Frequency (Hz)', xr=nxr, $
                          ytitle='Flux (mJy)',charsize=cs, /xstyle, /ystyle
     IF yy[0] NE -1 THEN BEGIN
@@ -438,6 +438,23 @@ ENDIF ELSE BEGIN
          ENDFOR
       ENDIF
     
+    IF oplqsc THEN BEGIN
+       Jlam=1.25e-6*100.        ;cm
+       frJ=3e10/Jlam
+       Klam=2.2e-6*100. ;cm
+       frK=3e10/Klam
+       Blam=0.44e-6*100.        ;cm
+       frB=3e10/Blam       
+       Vlam=0.545e-6*100.       ;cm
+       frV=3e10/Vlam
+       Ilam=0.798e-6*100. ;cm
+       frI=3e10/Ilam
+       opfreqs=[frB,frV,frI,frJ,frK]
+       oploterror, opfreqs,[qscb[0],qscv[0],qsci[0],qscj[0],qsck[0]],$
+                   [qscb[1],qscv[1],qsci[1],qscj[1],qsck[1]],psym=4,/nohat
+    ENDIF
+
+
      IF opltsed THEN BEGIN
         oplot, R.freqs, R.fitres1
         IF wradio THEN BEGIN
@@ -460,16 +477,12 @@ ENDELSE
 ;     IF keyword_set(omjd) THEN xyouts, 10.^(!x.crange[0]*1.02), 10.^(!y.crange[1]*0.95), omjd, size=1.2
 
  IF keyword_set(omjd) THEN BEGIN
-    IF strip THEN xyouts, 5E9, 80., omjd, size=1.2  ELSE $
+    IF strip THEN xyouts, 5E9, 10.^(!y.crange[1]*0.7), omjd, size=1.2  ELSE $
        xyouts, 2500, 12000, /device, omjd, size=1.2
  ENDIF
 
 
 ;THIS NEEDS TO BE FIXED LATER, CURRENTLY ONLY OVERPLOTS freq vs mJy
-
-
-
-
 
 
 IF (ps AND (NOT strip)) THEN BEGIN
