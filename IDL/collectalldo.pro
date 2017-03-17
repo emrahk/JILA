@@ -1,4 +1,4 @@
-pro collectalldo, outstr, name, year
+pro collectalldo, outstr, name, year, indir=dirin
 
 ; This program automatically collects spectral info from the logs of
 ; alldo programs
@@ -11,6 +11,8 @@ pro collectalldo, outstr, name, year
 ; OUTPUTS
 ;
 ; outstr: structure containing relevant info
+;
+; indir: initial directory to search for files
 ;
 ; USES
 ;
@@ -32,12 +34,24 @@ pro collectalldo, outstr, name, year
 ; 
 ; FIXING TINFO so that it will merge with the remaining structures
 ;
+; Jan 07 2016
+; added indir for the initial directory
 ;
-
+; Jan 09 2016
+;
+; copying rms in tinfo so that plotting routines work ok
+;
+; March 2017
+;
+; changing to accommodate upper limits
+;
+;
+;
+  
 ; create the structure that will hold relevant info
 
-
-mjdfs=file_search('XRAY/','mjdstart.txt',count=nfm)
+IF NOT keyword_set(dirin) THEN dirin='./'
+mjdfs=file_search(dirin,'mjdstart.txt',count=nfm)
 
 ;first take care of the timing structure
 
@@ -101,9 +115,9 @@ outstr.xdates=xdates
 
 FOR i=0, nfm-1 DO BEGIN
    ;first check if file exists
-   pfile=file_search('XRAY/'+obs[i],'pca_result.dat',count=fc)
+   pfile=file_search(dirin+obs[i],'pca_result.dat',count=fc)
    IF fc eq 0 THEN BEGIN
-      print, 'NO pca_result.dat found in XRAY/'+obs[i]+' ... check!'
+      print, 'NO pca_result.dat found in'+dirin+obs[i]+' ... check!'
    ENDIF ELSE BEGIN
       openr,1,pfile
       str=''
@@ -205,10 +219,10 @@ FOR i=0, nfm-1 DO BEGIN
 
 ;Now upper limits
 
-   upfile=file_search('XRAY/'+obs[i],'uplim_result.dat',count=fc)
+   upfile=file_search(dirin+obs[i],'uplim_result.dat',count=fc)
    rni=0
    IF fc eq 1 THEN BEGIN
-      print, 'uplim_result.dat found in XRAY/'+obs[i]
+      print, 'uplim_result.dat found in '+dirin+obs[i]
       openr,1,upfile
       str=''
       readf,1,str
@@ -238,9 +252,9 @@ ENDFOR
 FOR i=0, nfm-1 DO BEGIN
    print,i
    ;first check if file exists
-   pfile=file_search('XRAY/'+obs[i],'ph_result.dat',count=fc)
+   pfile=file_search(dirin+obs[i],'ph_result.dat',count=fc)
    IF fc eq 0 THEN BEGIN
-      print, 'NO ph_result.dat found in XRAY/'+obs[i]+' check.!'
+      print, 'NO ph_result.dat found in '+dirin+' '+obs[i]+' check.!'
    ENDIF ELSE BEGIN
       openr,1,pfile
       str=''
@@ -385,7 +399,7 @@ FOR i=0, nfm-1 DO BEGIN
    ENDELSE
 
   ;now get the timing info
-  rfile=file_search('XRAY/'+obs[i]+'/an/','result.sav')
+  rfile=file_search(dirin+obs[i]+'/an/','result.sav')
    IF (rfile eq '') THEN print,'no results in '+obs[i]+', skipping...' ELSE BEGIN
    inow=i
    restore,rfile
@@ -396,27 +410,31 @@ FOR i=0, nfm-1 DO BEGIN
    outstr.tinfo[i].chi=chi
    outstr.tinfo[i].dof=dof
    outstr.tinfo[i].totalrmsinf=sqrt(rinf)*100.
-   outstr.tinfo[i].totalrmsinferr=rinfer/sqrt(rinf)*100.
+   IF rinfer EQ -1 THEN outstr.tinfo[i].totalrmsinferr=-1 ELSE outstr.tinfo[i].totalrmsinferr=rinfer/sqrt(rinf)*100.
+   outstr.rms[0,i]=outstr.tinfo[i].totalrmsinf
+   outstr.rms[1,i]= outstr.tinfo[i].totalrmsinferr
    inds=indgen(nlor)*3
-   outstr.tinfo[i].lors[0:nlor-1].freq=r[inds+2]
-   outstr.tinfo[i].lors[0:nlor-1].fwhm=r[inds+1]
-   outstr.tinfo[i].lors[0:nlor-1].norm=r[inds]
-   outstr.tinfo[i].lors[0:nlor-1].freqerr=perror[inds+2]
-   outstr.tinfo[i].lors[0:nlor-1].fwhmerr=perror[inds+1]
-   outstr.tinfo[i].lors[0:nlor-1].normerr=perror[inds]
-   outstr.tinfo[i].lors[0:nlor-1].qval=r[inds+2]/r[inds+1]
-   outstr.tinfo[i].lors[0:nlor-1].qvalerr=tinfo[i].lors[0:nlor-1].qval*$
+   IF rinfer NE -1 THEN BEGIN
+      outstr.tinfo[i].lors[0:nlor-1].freq=r[inds+2]
+      outstr.tinfo[i].lors[0:nlor-1].fwhm=r[inds+1]
+      outstr.tinfo[i].lors[0:nlor-1].norm=r[inds]
+      outstr.tinfo[i].lors[0:nlor-1].freqerr=perror[inds+2]
+      outstr.tinfo[i].lors[0:nlor-1].fwhmerr=perror[inds+1]
+      outstr.tinfo[i].lors[0:nlor-1].normerr=perror[inds]
+      outstr.tinfo[i].lors[0:nlor-1].qval=r[inds+2]/r[inds+1]
+      outstr.tinfo[i].lors[0:nlor-1].qvalerr=tinfo[i].lors[0:nlor-1].qval*$
                                    ((perror[inds+2]/r[inds+2])+$
                  (perror[inds+1]/r[inds+1]))/sqrt(2.)     
-   FOR j=0,n_elements(r)-1,3 DO BEGIN
-      calrms,r[j:j+2],perror[j:j+2],rms0tw,rms0inf,/silent
-      outstr.tinfo[i].lors[j/3].rmsinf=rms0inf[0]*100.
-      outstr.tinfo[i].lors[j/3].rmsinferr=rms0inf[1]*100.
-      peak, r[j+2],perror[j+2],r[j+1],perror[j+1], fp, fpe
-      outstr.tinfo[i].lors[j/3].peakf=fp
-      outstr.tinfo[i].lors[j/3].peakferr=fpe      
-   ENDFOR
-   ENDELSE
+      FOR j=0,n_elements(r)-1,3 DO BEGIN
+         calrms,r[j:j+2],perror[j:j+2],rms0tw,rms0inf,/silent
+         outstr.tinfo[i].lors[j/3].rmsinf=rms0inf[0]*100.
+         outstr.tinfo[i].lors[j/3].rmsinferr=rms0inf[1]*100.
+         peak, r[j+2],perror[j+2],r[j+1],perror[j+1], fp, fpe
+         outstr.tinfo[i].lors[j/3].peakf=fp
+         outstr.tinfo[i].lors[j/3].peakferr=fpe      
+      ENDFOR
+   ENDIF
+  ENDELSE
 ENDFOR
  
 END
