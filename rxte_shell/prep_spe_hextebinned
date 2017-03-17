@@ -75,22 +75,15 @@ ln -s ../${resp}
 #need to differentiate the back and source
 #find source name
 lcname=`find ../${inpca}/standard2f* -name "*.lc" -print`
-#determine if all detectors are on
-alld=0
-for lcfile in $lcname; do
-    infi=`basename ${lcfile}`
-    if [ ${infi} = 'standard2f_excl.lc' ]; then 
-	alld=1
-	fi
-done
 
-if [ ${alld} = 1 ]; then
-    infile=standard2f_excl.pha
-    outfile=standard2f_excl_sys.pha
-   else
-    infile=`basename ${lcname} | sed s/\.lc//`.pha
-    outfile=`basename ${lcname} | sed s/\.lc//`_sys.pha
-fi
+for lcf in ${lcname}; do
+    isback=`basename ${lcf} | grep back`
+     if [ X${isback} = X ]; then
+         echo $lcf
+	 infile=`basename ${lcf} | sed s/\.lc//`.pha
+	 outfile=`basename ${lcf} | sed s/\.lc//`_sys.pha
+	 fi
+done
 
 addsys $infile $outfile
 
