@@ -93,15 +93,16 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
        'dnormp',fltarr(2,100),'dnormph',fltarr(2,100),$
        'pnormp',fltarr(2,100),'pnormph',fltarr(2,100),$
        'ftest',fltarr(2,100),'ecut',fltarr(2,100),'efold',fltarr(2,100),$
-       'totf',fltarr(2,100),'untotf',fltarr(100),$
-       'totfp',fltarr(2,100),'untotfp',fltarr(100),'totf200',fltarr(100),$
-       'untotf200',fltarr(100),'plfp',fltarr(100), 'plf',fltarr(100), $
-       'dbbp',fltarr(100),'dbb',fltarr(100),'rms',fltarr(2,100),$
+       'totf',fltarr(2,100),'untotf',fltarr(100), 'totfp',fltarr(2,100),$
+       'untotfp',fltarr(100),'totf200',fltarr(100), 'untotf200',fltarr(100),$
+       'plfp',fltarr(100), 'plf',fltarr(100), 'dbbp',fltarr(100),$
+       'dbb',fltarr(100),'rms',fltarr(2,100),$
        'ttrans',fltarr(2),'itrans',fltarr(2),'mwtrans',fltarr(2),$
        'strans',fltarr(2),'hstrans',fltarr(2),'simstrans',fltarr(2),$
        'himstrans',fltarr(2),'mwpeak',fltarr(2),'eddplf',fltarr(3,7),$
        'edddf',fltarr(3,7),'eddtf',fltarr(3,7),'indtr',fltarr(2,7),'vsoft',0,$
-       'tinfo',tinfo, 'radinfo',radinfo,'oirinfo',oirinfo)
+       'tinfo',tinfo, 'radinfo',radinfo,'oirinfo',oirinfo, $
+       'transflag',intarr(6))
 
 ;explanation for some of the tags:
 
@@ -129,7 +130,16 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
 ; vsoft: 1 means spectrum softened at the end of decay
 ; tinfo: timing structure
 ; oirinfo, radinfo : structures for oir and radio information.
- 
+;
+;transflags intarr(6):
+
+;1: distance measured
+;2. mass measured
+;3. <3 days observing period
+;4. hexte
+;5. also swift during transitions (to be used later for refining)
+;6. Not defined yet
+
     END
 
 
