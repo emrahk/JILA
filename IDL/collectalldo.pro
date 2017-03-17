@@ -16,7 +16,7 @@ pro collectalldo, outstr, name, year, indir=dirin
 ;
 ; USES
 ;
-; NONE
+; prep_datastructure
 ;
 ; USED BY
 ;
@@ -45,43 +45,20 @@ pro collectalldo, outstr, name, year, indir=dirin
 ;
 ; changing to accommodate upper limits
 ;
+; March 2017
 ;
+;   creating structure usint prep_datastructure which has more tags
+;   a first attempt to consolidate rise and decay analysis
 ;
   
 ; create the structure that will hold relevant info
 
+prep_datastructure, outstr, nname=name, nyear=year
+
+; get observation times from the given directory
+
 IF NOT keyword_set(dirin) THEN dirin='./'
 mjdfs=file_search(dirin,'mjdstart.txt',count=nfm)
-
-;first take care of the timing structure
-
-lors1=create_struct('freq',0.,'fwhm',0.,'norm',0.,'freqerr',0.,'fwhmerr',0.,$
-                   'normerr',0.,'peakf',0.,'peakferr',0.,'qval',0.,$
-                   'qvalerr',0.,'rmsinf',0.,'rmsinferr',0.,'flag1',0,$
-                   'flag2',0,'flag3',0,'flag4',0,'flag5',0)
-
-lors=replicate(lors1,6)
-
-tinfo1=create_struct('name',name,'year',year,'obsid','','dates',0.,$
-                    'lors',lors,'chi',0.,'dof',0,$
-                    'totalrmsinf',0.,'totalrmsinferr',0.)
-
-tinfo=replicate(tinfo1,100)
-
-outstr=create_struct('name',name,'year',year, 'mass',[0.,0.],$
-       'distance',[0.,0.],'inc',[0.,0.],'states',intarr(100),$
-       'ttrans',[0.,0.],'bperiod',0.,'bsep',0.,'obsid',strarr(100),$
-       'xdates',fltarr(100),'tin',fltarr(2,100),'ind',fltarr(2,100),$
-       'tinp',fltarr(2,100),'indp',fltarr(2,100),$
-       'eqwp',fltarr(100),'eqwh',fltarr(100),'normp',fltarr(2,100),$
-       'dnormp',fltarr(2,100),'dnormph',fltarr(2,100),$
-       'pnormp',fltarr(2,100),'pnormph',fltarr(2,100),$
-       'ftest',fltarr(2,100),'ecut',fltarr(2,100),'efold',fltarr(2,100),$
-       'totf',fltarr(2,100),'untotf',fltarr(100),$
-       'totfp',fltarr(2,100),'untotfp',fltarr(100),'totf200',fltarr(100),$
-       'untotf200',fltarr(100),'plfp',fltarr(100), 'plf',fltarr(100), $
-        'dbbp',fltarr(100), 'dbb',fltarr(100),'rms',fltarr(2,100),'tinfo',tinfo)
-
 
 ; read and sort
 ;
