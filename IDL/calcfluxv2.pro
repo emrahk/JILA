@@ -50,7 +50,12 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ; JAN 12: corrected handling of upper limits (was placing -1*error in error)
 ; JAN 23: was placing -1 to the last element when all diskbb values
 ; were regular (not upper limits), fixed
-
+;
+; MAR 2017
+;
+; fixed a bug regarding wrong tag for disk normalization, use dnormp,
+; not normp
+ 
 
 
 IF NOT keyword_set(dcor) THEN dcor=0
@@ -71,7 +76,7 @@ IF pcaonly THEN BEGIN
    tin=inpstr[inx].tinp[*,xx]
    plf=inpstr[inx].plfp[xx]
    dbb=inpstr[inx].dbbp[xx]
-   norm=inpstr[inx].normp[*,xx]
+   norm=inpstr[inx].dnormp[*,xx]
    totf=inpstr[inx].totfp[*,xx]
    untotf=inpstr[inx].untotfp[xx]
    untotf200=inpstr[inx].untotf200[*,xx]
@@ -83,7 +88,7 @@ ENDIF ELSE BEGIN
    tin=inpstr[inx].tin[*,xx]
    plf=inpstr[inx].plf[xx]
    dbb=inpstr[inx].dbb[xx]
-   norm=inpstr[inx].normp[*,xx]
+   norm=inpstr[inx].dnormp[*,xx]
    totf=inpstr[inx].totf[*,xx]
    untotf=inpstr[inx].untotf[xx]
    untotf200=inpstr[inx].untotf200[*,xx]
