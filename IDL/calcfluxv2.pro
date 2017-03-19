@@ -53,7 +53,7 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;
 ; MAR 2017
 ;
-; fixed a bug regarding wrong tag for disk normalization, use dnormp,
+; fixed a bug regarding wrong tag for disk normalization, use dnormph,
 ; not normp
  
 
@@ -79,7 +79,7 @@ IF pcaonly THEN BEGIN
    norm=inpstr[inx].dnormp[*,xx]
    totf=inpstr[inx].totfp[*,xx]
    untotf=inpstr[inx].untotfp[xx]
-   untotf200=inpstr[inx].untotf200[*,xx]
+   untotf200=inpstr[inx].untotf200[*,xx] ;chek this later
    xdates=inpstr[inx].xdates[xx]
 ENDIF ELSE BEGIN
    xx=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.)
@@ -88,7 +88,7 @@ ENDIF ELSE BEGIN
    tin=inpstr[inx].tin[*,xx]
    plf=inpstr[inx].plf[xx]
    dbb=inpstr[inx].dbb[xx]
-   norm=inpstr[inx].dnormp[*,xx]
+   norm=inpstr[inx].dnormph[*,xx]
    totf=inpstr[inx].totf[*,xx]
    untotf=inpstr[inx].untotf[xx]
    untotf200=inpstr[inx].untotf200[*,xx]
