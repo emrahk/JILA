@@ -1,16 +1,17 @@
-pro collectalldo, outstr, name, year, indir=dirin
+pro collectalldo, outstr, name, year, indir=dirin, crstr=crstr
 
 ; This program automatically collects spectral info from the logs of
 ; alldo programs
 ;
 ; INPUTS
 ;
+; outstr: the structure can be provided as input as well
 ; name: name of the source
 ; year: year of the outburst
 ;
 ; OUTPUTS
 ;
-; outstr: structure containing relevant info
+; outstr: structure containing relevant info if creates
 ;
 ; indir: initial directory to search for files
 ;
@@ -50,10 +51,16 @@ pro collectalldo, outstr, name, year, indir=dirin
 ;   creating structure usint prep_datastructure which has more tags
 ;   a first attempt to consolidate rise and decay analysis
 ;
+; fixed a bug regarding qval_err
+;
+; April 2017
+;
+; Made it optional to create the structure
+;
   
 ; create the structure that will hold relevant info
 
-prep_datastructure, outstr, nname=name, nyear=year
+IF keyword_set(crstr) THEN prep_datastructure, outstr, name=name, year=year
 
 ; get observation times from the given directory
 
@@ -399,8 +406,8 @@ FOR i=0, nfm-1 DO BEGIN
       outstr.tinfo[i].lors[0:nlor-1].fwhmerr=perror[inds+1]
       outstr.tinfo[i].lors[0:nlor-1].normerr=perror[inds]
       outstr.tinfo[i].lors[0:nlor-1].qval=r[inds+2]/r[inds+1]
-      outstr.tinfo[i].lors[0:nlor-1].qvalerr=tinfo[i].lors[0:nlor-1].qval*$
-                                   ((perror[inds+2]/r[inds+2])+$
+      outstr.tinfo[i].lors[0:nlor-1].qvalerr=$
+         outstr.tinfo[i].lors[0:nlor-1].qval*((perror[inds+2]/r[inds+2])+$
                  (perror[inds+1]/r[inds+1]))/sqrt(2.)     
       FOR j=0,n_elements(r)-1,3 DO BEGIN
          calrms,r[j:j+2],perror[j:j+2],rms0tw,rms0inf,/silent
