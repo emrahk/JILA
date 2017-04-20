@@ -89,8 +89,8 @@ IF keyword_set(nradinfo) THEN radinfo=nradinfo ELSE BEGIN
 ENDELSE
 
 outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
-       'distance',ndistance,'inc',ninc,'states',intarr(100),$
-       'states2', intarr(100),'bperiod',nbperiod,'bsep',nbsep,$
+       'distance',ndistance,'inc',ninc,'states',replicate(-1,100),$
+       'states2', replicate(-1,100),'bperiod',nbperiod,'bsep',nbsep,$
        'obsid',strarr(100), 'xdates',fltarr(100),'tin',fltarr(2,100),$
        'ind',fltarr(2,100), 'tinp',fltarr(2,100),'indp',fltarr(2,100),$
        'eqwp',fltarr(100),'eqwh',fltarr(100),'normp',fltarr(2,100),$
