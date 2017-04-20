@@ -39,6 +39,10 @@ pro prep_datastructure, outstr, name=nname, year=nyear, mass=nmass,$
 ;
 ; LOGS
 ;
+; BSEP and BPERIOD must be float, March 20
+;
+;
+;
 
 ;set optional parameters
 
@@ -47,8 +51,8 @@ IF NOT KEYWORD_SET(nyear) THEN nyear=''
 IF NOT KEYWORD_SET(nmass) THEN nmass=[0.,0.]
 IF NOT KEYWORD_SET(ndistance) THEN ndistance=[0.,0.]
 IF NOT KEYWORD_SET(ninc) THEN ninc=[0.,0.]
-IF NOT KEYWORD_SET(nbperiod) THEN nbperiod=0
-IF NOT KEYWORD_SET(nbsep) THEN nbsep=0
+IF NOT KEYWORD_SET(nbperiod) THEN nbperiod=0.
+IF NOT KEYWORD_SET(nbsep) THEN nbsep=0.
 
   
 ;first take care of the timing structure
