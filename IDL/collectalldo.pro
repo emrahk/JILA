@@ -57,6 +57,14 @@ pro collectalldo, outstr, name, year, indir=dirin, crstr=crstr
 ;
 ; Made it optional to create the structure
 ;
+; May 2017
+;
+; For fixed Tin values in pca+hexte fits, use pca values, this is a
+; temporary solution and has to be fixed later
+;
+; also, we need to use evalpar routine for properly taking care of
+; upper and lower limits, TBD
+
   
 ; create the structure that will hold relevant info
 
@@ -420,6 +428,15 @@ FOR i=0, nfm-1 DO BEGIN
    ENDIF
   ENDELSE
 ENDFOR
- 
+
+;FINAL HACK to fix disk values, A TEMPORARY FIX
+
+probdisk=where((outstr.dbb GT 0) AND (outstr.tin[0,*] eq 0) AND (outstr.tinp[0,*] NE 0))
+
+IF probdisk[0] NE -1 THEN BEGIN
+   outstr.tin[*,probdisk]=outstr.tinp[*,probdisk]
+   outstr.dnormph[*,probdisk]=outstr.dnormp[*,probdisk]
+ENDIF
+
 END
 
