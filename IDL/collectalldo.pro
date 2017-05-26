@@ -64,7 +64,10 @@ pro collectalldo, outstr, name, year, indir=dirin, crstr=crstr
 ;
 ; also, we need to use evalpar routine for properly taking care of
 ; upper and lower limits, TBD
-
+;
+; 26 May
+;
+; Fixed a syntax error regarding total 25-200 keV fluxes.
   
 ; create the structure that will hold relevant info
 
@@ -366,14 +369,14 @@ FOR i=0, nfm-1 DO BEGIN
                      outstr.dbb[i]=1E9*fl
                   END
 
-                  '25_25abs': BEGIN
+                  '25_200abs': BEGIN
                      flm=float(vals[2])
                      flp=float(vals[3])
                      outstr.totf200[0,i]=1E9*(flp+flm)/2.
                      outstr.totf200[1,i]=1E9*(flp-flm)/2.
                   END
 
-                  '25_20unabs': BEGIN
+                  '25_200unabs': BEGIN
                      fl=float(vals[1])
                      outstr.untotf200[i]=1E9*fl
                   END
