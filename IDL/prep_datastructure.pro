@@ -41,7 +41,7 @@ pro prep_datastructure, outstr, name=nname, year=nyear, mass=nmass,$
 ;
 ; BSEP and BPERIOD must be float, March 20
 ;
-;
+; fixing totf25200 array definition
 ;
 
 ;set optional parameters
@@ -98,7 +98,7 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
        'pnormp',fltarr(2,100),'pnormph',fltarr(2,100),$
        'ftest',fltarr(2,100),'ecut',fltarr(2,100),'efold',fltarr(2,100),$
        'totf',fltarr(2,100),'untotf',fltarr(100), 'totfp',fltarr(2,100),$
-       'untotfp',fltarr(100),'totf200',fltarr(100), 'untotf200',fltarr(100),$
+       'untotfp',fltarr(100),'totf200',fltarr(2,100), 'untotf200',fltarr(100),$
        'plfp',fltarr(100), 'plf',fltarr(100), 'dbbp',fltarr(100),$
        'dbb',fltarr(100),'rms',fltarr(2,100),$
        'ttrans',fltarr(2),'itrans',fltarr(2),'mwtrans',fltarr(2),$
