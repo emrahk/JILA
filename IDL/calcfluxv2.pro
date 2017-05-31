@@ -55,8 +55,13 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;
 ; fixed a bug regarding wrong tag for disk normalization, use dnormph,
 ; not normp
- 
-
+;
+; MAY 2017
+;
+; Fixing Maccarone correction, numerical integration fails because
+;large energies do not contribute to total but difficult to evaluate
+; using analytical solutions with Gamma functions (igamma(0.2,E/200.))
+;
 
 IF NOT keyword_set(dcor) THEN dcor=0
 IF NOT keyword_set(pcor) THEN pcor=0
@@ -124,7 +129,9 @@ corrp=fltarr(n_elements(plf))
 ;convert power law
 
 IF mac THEN BEGIN
-  corrp=qsimp('cutoffpl',0.5, 10000.)/qsimp('cutoffpl',3.,25.)
+  ;corrp=qsimp('cutoffpl',0.5, 10000.)/qsimp('cutoffpl',3.,25.)
+  ;3-25 keV correction factor is fixed
+  corrp=2.857 
   pflux=untotf*corrp
 ENDIF ELSE BEGIN
 
