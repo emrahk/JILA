@@ -55,7 +55,12 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;
 ; fixed a bug regarding wrong tag for disk normalization, use dnormph,
 ; not normp
- 
+;
+; June 2017
+;
+; It used to only calculate fluxes for which dbb is not zero, but to
+;make sure it works ok with other programs, it is best to define
+;corrected luminosities as arryas of 100.
 
 
 IF NOT keyword_set(dcor) THEN dcor=0
@@ -70,29 +75,29 @@ IF NOT keyword_set(pcaonly) THEN pcaonly=0
 ;best maybe to write a program to convert older structure to new structure
 
 IF pcaonly THEN BEGIN
-   xx=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.)
+   nz=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.)
 
-   ind=inpstr[inx].indp[*,xx]
-   tin=inpstr[inx].tinp[*,xx]
-   plf=inpstr[inx].plfp[xx]
-   dbb=inpstr[inx].dbbp[xx]
-   norm=inpstr[inx].dnormp[*,xx]
-   totf=inpstr[inx].totfp[*,xx]
-   untotf=inpstr[inx].untotfp[xx]
-   untotf200=inpstr[inx].untotf200[*,xx] ;chek this later
-   xdates=inpstr[inx].xdates[xx]
+   ind=inpstr[inx].indp[*,nz]
+   tin=inpstr[inx].tinp[*,nz]
+   plf=inpstr[inx].plfp[nz]
+   dbb=inpstr[inx].dbbp[nz]
+   norm=inpstr[inx].dnormp[*,nz]
+   totf=inpstr[inx].totfp[*,nz]
+   untotf=inpstr[inx].untotfp[nz]
+   untotf200=inpstr[inx].untotf200[*,nz] ;check this later
+   xdates=inpstr[inx].xdates[nz]
 ENDIF ELSE BEGIN
    xx=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.)
 
-   ind=inpstr[inx].ind[*,xx]
-   tin=inpstr[inx].tin[*,xx]
-   plf=inpstr[inx].plf[xx]
-   dbb=inpstr[inx].dbb[xx]
-   norm=inpstr[inx].dnormph[*,xx]
-   totf=inpstr[inx].totf[*,xx]
-   untotf=inpstr[inx].untotf[xx]
-   untotf200=inpstr[inx].untotf200[*,xx]
-   xdates=inpstr[inx].xdates[xx]
+   ind=inpstr[inx].ind[*,nz]
+   tin=inpstr[inx].tin[*,nz]
+   plf=inpstr[inx].plf[nz]
+   dbb=inpstr[inx].dbb[nz]
+   norm=inpstr[inx].dnormph[*,nz]
+   totf=inpstr[inx].totf[*,nz]
+   untotf=inpstr[inx].untotf[nz]
+   untotf200=inpstr[inx].untotf200[*,nz]
+   xdates=inpstr[inx].xdates[nz]
 ENDELSE
 
 IF NOT keyword_set(minpe) THEN BEGIN
@@ -160,10 +165,11 @@ ENDELSE
 
 ;;;;values were in terms of 1e-9!
 
-outpelf=fltarr(3,n_elements(pflux))
-outpelf[0,*]=1D-9*pflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-outpelf[1,*]=outpelf[0,*]*errorf
-outpelf[2,*]=outpelf[0,*]*errat
+;outpelf=fltarr(3,n_elements(pflux))
+outpelf=fltarr(3,100)
+outpelf[0,nz]=1D-9*pflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
+outpelf[1,nz]=outpelf[0,*]*errorf
+outpelf[2,nz]=outpelf[0,*]*errat
 
 ; now the disk part
 
@@ -171,19 +177,19 @@ outdelf=outpelf
 
 IF noderr THEN BEGIN
    dbflux=dbb*1D-9
-   outdelf[0,*]=dbflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-   outdelf[1,*]=0.
-   outdelf[2,*]=outdelf[0,*]*errat
+   outdelf[0,nz]=dbflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
+   outdelf[1,nz]=0.
+   outdelf[2,nz]=outdelf[0,nz]*errat
    ENDIF ELSE BEGIN
 
    IF dcor THEN bolcor_diskbbv2, tin, norm, dbflux ELSE bolcor_diskbbv2, tin, norm, dbflux, erange=[3., 25.]
 
    xx=where(dbflux[1,*] NE -1)
    yy=where(dbflux[1,*] EQ -1)
-   outdelf[0,*]=dbflux[0,*]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-   outdelf[1,xx]=dbflux[1,xx]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-   IF yy[0] NE -1 THEN outdelf[1,yy]=-1
-   outdelf[2,*]=outdelf[0,*]*errat
+   outdelf[0,nz]=dbflux[0,nz]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
+   outdelf[1,nz[xx]]=dbflux[1,nz[xx]]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
+   IF yy[0] NE -1 THEN outdelf[1,nz[yy]]=-1
+   outdelf[2,nz]=outdelf[0,nz]*errat
 ENDELSE
 
 outtelf=outpelf
