@@ -55,7 +55,10 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;
 ; Fixed an error indexing plfs. This version may not work fine with
 ;older data.
-
+;
+;When some PCA+HEXTE fits missing it screws up! Must check and fill
+;missing pca+hexte values with pca values
+  
  
 IF NOT keyword_set(dcor) THEN dcor=0
 IF NOT keyword_set(pcor) THEN pcor=0
@@ -73,8 +76,12 @@ ndim=size(inpstr[inx].plf,/n_dimensions)
 nelplf=size(inpstr[inx].plf,/n_elements)
 
 IF ndim EQ 1 THEN nz=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.,nelnz) $
-    ELSE nz=where((inpstr[inx].plf[0,*]+inpstr[inx].plfp[0,*]) NE 0.,nelnz) ;non zero means all elements zero.
+ELSE nz=where((inpstr[inx].plf[0,*]+inpstr[inx].plfp[0,*]) NE 0.,nelnz) ;non zero means all elements zero.
 
+;Check if pca+hexte missing any data
+IF NOT pcaonly THEN phmis=where((inpstr[inx].plf[0,nz] EQ 0) AND (+inpstr[inx].plfp[0,nz] NE 0.),nelhm)
+   
+   
 plf=fltarr(2,nelplf)
 dbb=fltarr(2,nelplf)
 
@@ -99,6 +106,16 @@ ENDIF ELSE BEGIN
    untotf=inpstr[inx].untotf[nz]
    untotf200=inpstr[inx].untotf200[0,nz]
    xdates=inpstr[inx].xdates[nz]
+   IF nelhm NE 0 THEN BEGIN
+         ind[*,phmis]=inpstr[inx].indp[*,nz[phmis]]
+         tin[*,phmis]=inpstr[inx].tinp[*,nz[phmis]]
+         IF ndim EQ 1 THEN plf[0,phmis]=inpstr[inx].plfp[nz[phmis]] ELSE plf[*,phmis]=inpstr[inx].plfp[*,nz[phmis]]
+         IF ndim EQ 1 THEN dbb[0,phmis]=inpstr[inx].dbbp[nz[phmis]] ELSE dbb[*,phmis]=inpstr[inx].dbbp[*,nz[phmis]]   
+         norm[*,phmis]=inpstr[inx].dnormp[*,nz[phmis]]
+         totf[*,phmis]=inpstr[inx].totfp[*,nz[phmis]]
+         untotf[phmis]=inpstr[inx].untotf[nz[phmis]]
+         untotf200[*,phmis]=inpstr[inx].untotf200[0,nz[phmis]]
+      ENDIF
 ENDELSE
 
 IF NOT keyword_set(minpe) THEN BEGIN
