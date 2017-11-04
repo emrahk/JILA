@@ -62,6 +62,16 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;large energies do not contribute to total but difficult to evaluate
 ; using analytical solutions with Gamma functions (igamma(0.2,E/200.))
 ;
+;
+; NOV 2017
+;
+; Changing error calculation to assume independent errors, with no
+;covariance. Adding an additional element to calculate total error
+;
+; These changes should be implemented in calcfluxv3.pro. Eventually
+;calcfluxv2.pro may be obsolete.
+
+
 
 IF NOT keyword_set(dcor) THEN dcor=0
 IF NOT keyword_set(pcor) THEN pcor=0
@@ -120,11 +130,14 @@ corrp=fltarr(n_elements(plf))
 ;   assume 3-25 keV error dominated by error in power law, for now do
 ;   not consider 25-200 erorrs separately
  
-   errorf=totf[1,*]/totf[0,*]
+   errorf=totf[1,*]/totf[0,*] 
 
 ;   error due to mass and distance
+   
+;   errat=2*(inpstr[inx].distance[1]/inpstr[inx].distance[0])+(inpstr[inx].mass[1]/inpstr[inx].mass[0]) OVERESTIMATE
 
-   errat=2*(inpstr[inx].distance[1]/inpstr[inx].distance[0])+(inpstr[inx].mass[1]/inpstr[inx].mass[0])
+errat=sqrt(4*(inpstr[inx].distance[1]/inpstr[inx].distance[0])^2.+(inpstr[inx].mass[1]/inpstr[inx].mass[0])^2.)
+
 
 ;convert power law
 
@@ -167,10 +180,11 @@ ENDELSE
 
 ;;;;values were in terms of 1e-9!
 
-outpelf=fltarr(3,n_elements(pflux))
+outpelf=fltarr(4,n_elements(pflux)) ;MAKE IT 4 elements for the total error
 outpelf[0,*]=1D-9*pflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
 outpelf[1,*]=outpelf[0,*]*errorf
 outpelf[2,*]=outpelf[0,*]*errat
+outpelf[3,*]=outpelf[0,*]*sqrt(errat^2.+errorf^2.)
 
 ; now the disk part
 
@@ -179,8 +193,9 @@ outdelf=outpelf
 IF noderr THEN BEGIN
    dbflux=dbb*1D-9
    outdelf[0,*]=dbflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-   outdelf[1,*]=0.
+   outdelf[1,*]=0.  
    outdelf[2,*]=outdelf[0,*]*errat
+   outdelf[3,*]=outdelf[0,*]*errat 
    ENDIF ELSE BEGIN
 
    IF dcor THEN bolcor_diskbbv2, tin, norm, dbflux ELSE bolcor_diskbbv2, tin, norm, dbflux, erange=[3., 25.]
@@ -189,14 +204,18 @@ IF noderr THEN BEGIN
    yy=where(dbflux[1,*] EQ -1)
    outdelf[0,*]=dbflux[0,*]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
    outdelf[1,xx]=dbflux[1,xx]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
+   errorfd=outdelf[1,xx]/outdelf[0,xx]
    IF yy[0] NE -1 THEN outdelf[1,yy]=-1
    outdelf[2,*]=outdelf[0,*]*errat
+   outdelf[3,xx]=outdelf[0,xx]*sqrt(errat^2.+errorfd^2.)
 ENDELSE
 
-outtelf=outpelf
+outtelf=outpelf ;THIS SHOULD BE DONE THROUGH OVERALL FIT IN calcfluxv3!
 outtelf[0,*]=outpelf[0,*]+outdelf[0,*]
-outtelf[1,*]=outpelf[1,*]+outdelf[1,*]
-outtelf[2,*]=outtelf[0,*]*errat
+outtelf[1,*]=outpelf[1,*]+outdelf[1,*] ;not sure actually, probably overestimate
+outtelf[2,*]=outtelf[0,*]*errat ;yes, mass and distance error enter the total the same way
+errorft=outtelf[1,*]/outtelf[0,*]
+outtelf[3,*]=outtelf[0,*]*sqrt(errat^2.+errorft^2.)
 
 IF diagplot THEN BEGIN
 
