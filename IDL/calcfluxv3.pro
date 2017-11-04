@@ -53,7 +53,8 @@ mac=mac, plmin=minpe, diagplot=diagplot, noderr=noderr, pcaonly=pcaonly
 ;
 ;I need to be careful indexing nz values, especially with bolcor_diskbbv2
 ;
-;
+; Fixed an error indexing plfs. This version may not work fine with
+;older data.
 
  
 IF NOT keyword_set(dcor) THEN dcor=0
@@ -74,11 +75,14 @@ nelplf=size(inpstr[inx].plf,/n_elements)
 IF ndim EQ 1 THEN nz=where((inpstr[inx].plf+inpstr[inx].plfp) NE 0.,nelnz) $
     ELSE nz=where((inpstr[inx].plf[0,*]+inpstr[inx].plfp[0,*]) NE 0.,nelnz) ;non zero means all elements zero.
 
+plf=fltarr(2,nelplf)
+dbb=fltarr(2,nelplf)
+
 IF pcaonly THEN BEGIN      
    ind=inpstr[inx].indp[*,nz]
    tin=inpstr[inx].tinp[*,nz]
-   IF ndim EQ 1 THEN plf=inpstr[inx].plfp[nz] ELSE plf=inpstr[inx].plfp[0,nz]
-   IF ndim EQ 1 THEN dbb=inpstr[inx].dbbp[nz] ELSE dbb=inpstr[inx].dbbp[0,nz]
+   IF ndim EQ 1 THEN plf[0,*]=inpstr[inx].plfp[nz] ELSE plf=inpstr[inx].plfp[*,nz]
+   IF ndim EQ 1 THEN dbb[0,*]=inpstr[inx].dbbp[nz] ELSE dbb=inpstr[inx].dbbp[*,nz]
    norm=inpstr[inx].dnormp[*,nz]
    totf=inpstr[inx].totfp[*,nz]
    untotf=inpstr[inx].untotfp[nz]
@@ -88,8 +92,8 @@ ENDIF ELSE BEGIN
 
    ind=inpstr[inx].ind[*,nz]
    tin=inpstr[inx].tin[*,nz]
-   IF ndim EQ 1 THEN plf=inpstr[inx].plf[nz] ELSE plf=inpstr[inx].plf[0,nz]
-   IF ndim EQ 1 THEN dbb=inpstr[inx].dbb[nz] ELSE dbb=inpstr[inx].dbb[0,nz]   
+   IF ndim EQ 1 THEN plf[0,*]=inpstr[inx].plf[nz] ELSE plf=inpstr[inx].plf[*,nz]
+   IF ndim EQ 1 THEN dbb[0,*]=inpstr[inx].dbb[nz] ELSE dbb=inpstr[inx].dbb[*,nz]   
    norm=inpstr[inx].dnormph[*,nz]
    totf=inpstr[inx].totf[*,nz]
    untotf=inpstr[inx].untotf[nz]
@@ -178,7 +182,7 @@ outpelf[3,nz]=outpelf[0,nz]*sqrt(errat^2.+errorfp^2.)
 outdelf=fltarr(4,100)
 
 IF noderr THEN BEGIN
-   dbflux=dbb*1D-9
+   dbflux=dbb[0,*]*1D-9
    outdelf[0,nz]=dbflux*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
    outdelf[1,nz]=0.
    outdelf[2,nz]=outdelf[0,nz]*errat
@@ -191,7 +195,9 @@ IF noderr THEN BEGIN
    yy=where(dbflux[1,*] EQ -1)
    outdelf[0,nz]=dbflux[0,*]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
    outdelf[1,nz[xx]]=dbflux[1,xx]*4*!PI*(inpstr[inx].distance[0]*kpc)^2./Elum
-  errorfd=outdelf[1,nz[xx]]/outdelf[0,nz[xx]]
+   errorfd=outdelf[1,nz[xx]]/outdelf[0,nz[xx]]
+   nans=where(finite(errorfd) EQ 0)
+   errorfd[nans]=0
    IF yy[0] NE -1 THEN outdelf[1,nz[yy]]=-1
    outdelf[2,*]=outdelf[0,*]*errat
    outdelf[3,nz[xx]]=outdelf[0,nz[xx]]*sqrt(errat^2.+errorfd^2.)
@@ -236,7 +242,7 @@ ploterror, xdates-50000.,tin[0,*],tin[1,*],psym=8, ytitle='Tin',$
 multiplot
 
 ploterror, xdates-50000.,dbflux[0,*]*1D10,dbflux[1,*]*1D10,psym=8, ytitle='DBB',/ylog,$
-/xstyle,/nohat,/ystyle, yr=[min(dbb[where(dbb Ne 0.)])/2., max(dbflux[0,*]+dbflux[1,*])*1.2*1D10],chars=cs ;
+/xstyle,/nohat,/ystyle, yr=[min(dbflux[0,where(dbflux[0,*] Ne 0.)])/2., max(dbflux[0,*]+dbflux[1,*])*1.2*1D10],chars=cs ;
 
 oplot, xdates-50000., dbb, psym=1
 
