@@ -210,9 +210,9 @@ IF noderr THEN BEGIN
    outdelf[3,xx]=outdelf[0,xx]*sqrt(errat^2.+errorfd^2.)
 ENDELSE
 
-outtelf=outpelf ;THIS SHOULD BE DONE THROUGH OVERALL FIT IN calcfluxv3!
+outtelf=outpelf ;
 outtelf[0,*]=outpelf[0,*]+outdelf[0,*]
-outtelf[1,*]=outpelf[1,*]+outdelf[1,*] ;not sure actually, probably overestimate
+outtelf[1,*]=outpelf[1,*]+outdelf[1,*] ;not sure, could be an overestimate
 outtelf[2,*]=outtelf[0,*]*errat ;yes, mass and distance error enter the total the same way
 errorft=outtelf[1,*]/outtelf[0,*]
 outtelf[3,*]=outtelf[0,*]*sqrt(errat^2.+errorft^2.)
