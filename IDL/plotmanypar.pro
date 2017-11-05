@@ -179,7 +179,7 @@ FOR i=0, plstr.nop-1 DO BEGIN
 
          noerror=0   
          par=fltarr(2,100)
-         omitdisk=where((outdelf[0,*]+outdelf[3,*]) GE outpelf[0,*])
+         omitdisk=where(((outdelf[0,*]+outdelf[3,*]) GE outpelf[0,*]) AND (outdelf[1,*]/outdelf[0,*] GT 0.5))
          ;get the indices of non zero fluxes
          ;nzf=where(instr.plf NE 0) 
 
