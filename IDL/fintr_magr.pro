@@ -1,4 +1,4 @@
-pro fintr_magr, time, mag, irtrans, ps=ps, filename=filename, sname=sname, fpar=parf
+pro fintr_magr, time, mag, irtrans, ps=ps, filename=filename, sname=sname, fpar=parf, revc=revc
 
 ;This program takes the evolution of indices as a function of time and
 ;find transition points for the rise
@@ -15,6 +15,7 @@ pro fintr_magr, time, mag, irtrans, ps=ps, filename=filename, sname=sname, fpar=
 ;
 ;ps: filename: postscript output and associated filename
 ;sname: source name optionally can be placed on top of the graph
+;revc: reverse color for overplotted lines
 ;
 ;OPTIONAL OUTPUTS
 ;fpar: fit parameters
@@ -23,7 +24,7 @@ pro fintr_magr, time, mag, irtrans, ps=ps, filename=filename, sname=sname, fpar=
 IF NOT keyword_set(ps) then ps=0
 IF NOT keyword_set(filename) then filename='fitmag.eps'
 IF NOT keyword_set(sname) then sname=''
-
+IF keyword_set(revc) THEN linec=0 ELSE linec=255
 
 ;rescale time
 
@@ -43,10 +44,10 @@ WHILE cond1 EQ 'No' do begin
   print,'Please set the range flat part !!!'
   print,'Move the mouse to the startpoint of region and click'
   cursor, x1, y1, /down
-  oplot,[x1,x1],!y.crange,line=0
+  oplot,[x1,x1],!y.crange,line=0,color=linec
   print,'Move the mouse to the endpoint of region and click'
   if !mouse.button ne 4 then cursor, x2, y2, /down
-  oplot,[x2,x2],!y.crange,line=0
+  oplot,[x2,x2],!y.crange,line=0,color=linec
   wait,0.5
   rt=[x1,x2]
   cond1 = DIALOG_MESSAGE('Are you happy with the range you chose?', /Ques)
@@ -62,10 +63,10 @@ WHILE cond1 EQ 'No' do begin
   PRINT,'Please set the range for changing mag' 
   print,'Move the mouse to the startpoint of region and click'
   cursor, x1, y1, /down
-  oplot,[x1,x1],!y.crange,line=0
+  oplot,[x1,x1],!y.crange,line=0,color=linec
   print,'Move the mouse to the endpoint of region and click'
   if !mouse.button ne 4 then cursor, x2, y2, /down
-  oplot,[x2,x2],!y.crange,line=0
+  oplot,[x2,x2],!y.crange,line=0,color=linec
   wait,0.5
   rd=[x1,x2]
   cond1 = DIALOG_MESSAGE('Are you happy with the range you chose?', /Ques)
@@ -93,8 +94,8 @@ rdfit=linfit(td,id[0,*],measure_errors=id[1,*],sigma=sigma_rd)
 
 xx=findgen(floor(max(rtime)-min(rtime))+1)+min(rtime)
 
-oplot,xx,bottomfit[0]+xx*bottomfit[1],line=2
-oplot,xx,rdfit[0]+xx*rdfit[1],line=2
+oplot,xx,bottomfit[0]+xx*bottomfit[1],line=2,color=linec
+oplot,xx,rdfit[0]+xx*rdfit[1],line=2,color=linec
 
 ;get the intersection point
 
