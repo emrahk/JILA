@@ -1,4 +1,4 @@
-pro fintr_magr, time, mag, irtrans, ps=ps, filename=filename, sname=sname, fpar=parf, revc=revc
+pro fintr_magr, time, mag, itrans, ps=ps, filename=filename, sname=sname, fpar=parf, revc=revc
 
 ;This program takes the evolution of indices as a function of time and
 ;find transition points for the rise
