@@ -24,12 +24,13 @@ pro stretch_fit, inpstr, ps=ps,namef=fname, names=sname, usecol=usecol, trnir=ni
 IF NOT keyword_set(ps) then ps=0
 IF NOT keyword_set(fname) then fname='stretched.eps'
 IF NOT keyword_set(sname) then sname=''
+IF NOT keyword_set(usecol) THEN usecol=0
 
 device,decomposed=0
 
 IF usecol THEN BEGIN
    loadct,4
-   colcode=[0, 184,120,40,150];
+   colcode=[0, 184,120,60,205];
 ENDIF ELSE BEGIN
    loadct,0
    colcode=[0, 195,155,95,15]
@@ -43,8 +44,8 @@ allbands=['H','J','I','V']          ;extend this list if necessary later
 ;start with the first band
 
 allh=where(inpstr.oirinfo.band eq 'H' AND inpstr.oirinfo.mag[0,*] NE 0. $
-           AND (inpstr.oirinfo.dates GT inpstr.ttrans[0]-50.) AND $
-           (inpstr.oirinfo.dates LT inpstr.ttrans[0]+50.))
+           AND (inpstr.oirinfo.dates GT inpstr.ttrans[0]-30.) AND $
+           (inpstr.oirinfo.dates LT inpstr.ttrans[0]+30.))
 dateh=inpstr.oirinfo.dates[allh]
 magh=inpstr.oirinfo.mag[*,allh]
 
@@ -131,35 +132,38 @@ xyouts,!x.crange[1]*0.82, !y.crange[1]*0.39, 'H', color=colcode[0], size=1.2
 ;now other bands
 
 FOR i=1, N_ELEMENTS(allbands)-1 DO BEGIN
-   allbi=where((inpstr.oirinfo.band eq allbands[i]) AND (inpstr.oirinfo.mag[0,*] NE 0.))
+   allbi=where((inpstr.oirinfo.band eq allbands[i]) AND (inpstr.oirinfo.mag[0,*] NE 0.),nmag)
 
-   datebi=inpstr.oirinfo.dates[allbi]
-   magbi=inpstr.oirinfo.mag[*,allbi]
+   IF nmag NE 0 THEN BEGIN
+      datebi=inpstr.oirinfo.dates[allbi]
+      magbi=inpstr.oirinfo.mag[*,allbi]
 
    ;match times
-   rtime=datebi-dateh[min(lo)]
+      rtime=datebi-dateh[min(lo)]
 
 
-   loi=where((datebi GE rt1[0]) AND (datebi LE rt1[1]))
-   lobi=avg(magbi[0,loi])
+      loi=where((datebi GE rt1[0]) AND (datebi LE rt1[1]))
+      lobi=avg(magbi[0,loi])
 
-   hii=where((datebi GE rt2[0]) AND (datebi LE rt2[1]))
-   hibi=avg(magbi[0,hii])
+      hii=where((datebi GE rt2[0]) AND (datebi LE rt2[1]))
+      hibi=avg(magbi[0,hii])
 
-   trbi=max(loi)+1+indgen(min(hii)-max(loi)-1)
+      IF min(hii)-max(loi) GT 1. THEN trbi=max(loi)+1+indgen(min(hii)-max(loi)-1)
 
    ;equalize flat bottoms and stretch
 
-   rat=(hih-loh)/(hibi-lobi)
+      rat=(hih-loh)/(hibi-lobi)
    
-   oploterror, rtime[loi], magbi[0,loi]-lobi, magbi[1,loi], psym=8, color=colcode[i]
-   oploterror, rtime[hii], (magbi[0,hii]-lobi)*rat, magbi[1,hii], psym=8, color=colcode[i]
-   oploterror, rtime[trbi], (magbi[0,trbi]-lobi)*rat, magbi[1,trbi], psym=8, color=colcode[i]
+      oploterror, rtime[loi], magbi[0,loi]-lobi, magbi[1,loi], psym=8, color=colcode[i]
+      oploterror, rtime[hii], (magbi[0,hii]-lobi)*rat, magbi[1,hii], psym=8, color=colcode[i]
+      IF min(hii)-max(loi) GT 1. THEN oploterror, rtime[trbi], (magbi[0,trbi]-lobi)*rat, magbi[1,trbi], psym=8, color=colcode[i]
    
 
-   oplot, !x.crange[1]*0.8*[1.,1.], !y.crange[1]*0.38-(i*0.2)*[1.,1.],$
+      oplot, !x.crange[1]*0.8*[1.,1.], !y.crange[1]*0.38-(i*0.2)*[1.,1.],$
           color=colcode[i], psym=8
-   xyouts,!x.crange[1]*0.82, !y.crange[1]*0.37-(i*0.2), allbands[i], color=colcode[i], size=1.2
+      xyouts,!x.crange[1]*0.82, !y.crange[1]*0.37-(i*0.2), allbands[i], color=colcode[i], size=1.2
+   ENDIF
+   
 ENDFOR
 
 IF keyword_set(nirtr) THEN BEGIN
