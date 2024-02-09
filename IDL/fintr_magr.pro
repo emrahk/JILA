@@ -19,6 +19,10 @@ pro fintr_magr, time, mag, itrans, ps=ps, filename=filename, sname=sname, fpar=p
 ;
 ;OPTIONAL OUTPUTS
 ;fpar: fit parameters
+;
+;COMMENTS
+;
+; If error in mag is zero make it 0.02
 
 
 IF NOT keyword_set(ps) then ps=0
@@ -79,6 +83,10 @@ ti=where((rtime gt rt[0]) AND (rtime lt rt[1]))
 tt=rtime[ti]
 it=mag[*,ti]
 
+zeroe=where(it[1,*] eq 0.,nz)
+IF nz NE 0 THEN it[1,zeroe]=0.02
+
+
 ;first fit the bottom
 
 bottomfit=linfit(tt,it[0,*],measure_errors=it[1,*],sigma=sigma_bottom) 
@@ -89,6 +97,10 @@ ti=where((rtime gt rd[0]) AND (rtime lt rd[1]))
 
 td=rtime[ti]
 id=mag[*,ti]
+
+
+zeroe=where(id[1,*] eq 0.,nz)
+IF nz NE 0 THEN id[1,zeroe]=0.02
 
 rdfit=linfit(td,id[0,*],measure_errors=id[1,*],sigma=sigma_rd) 
 
