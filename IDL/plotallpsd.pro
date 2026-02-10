@@ -89,7 +89,6 @@ FOR stu=0,nobs-1 DO BEGIN
   result=file_search(dirinp+obs[stu]+'/an/','result.sav')
   IF result NE '' THEN BEGIN
      restore,dirinp+obs[stu]+'/an/result.sav'
-
      nlor=n_elements(r)/3
      PLOTERROR,ff,pf*ff,pfe*ff,/xlog,/ylog,$
 position=[0.120+(xind*0.220),(0.99-yse)-(yind*yse),$
@@ -108,7 +107,6 @@ charsize=1.3,/ystyle,/nohat,col=col, errcol=col
         OPLOT,ff,pow*ff,thick=2
      ENDIF
   ENDIF
-  
 XYOUTS,0.004,4e-2,'day:'+strtrim(string(time[stu]),1),charsize=0.7
 ;XYOUTS,0.004,2e-2,'hmag:'+strtrim(string(hmags[stu-8]),1),charsize=0.7
 ;IF stu eq 6 THEN XYOUTS,0.12, 4e-2, 'SOFTENING STARTS', charsize=0.7

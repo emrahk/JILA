@@ -43,6 +43,8 @@ pro prep_datastructure, outstr, name=nname, year=nyear, mass=nmass,$
 ;
 ; fixing totf25200 array definition
 ;
+; itrans2, mwtrans2 added, may break some older codes Feb 2026
+;
 
 ;set optional parameters
 
@@ -101,7 +103,8 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
        'untotfp',fltarr(100),'totf200',fltarr(2,100), 'untotf200',fltarr(100),$
        'plfp',fltarr(100), 'plf',fltarr(100), 'dbbp',fltarr(100),$
        'dbb',fltarr(100),'rms',fltarr(2,100),$
-       'ttrans',fltarr(2),'itrans',fltarr(2),'mwtrans',fltarr(2),$
+       'ttrans',fltarr(2),'itrans1',fltarr(2),'mwtrans1',fltarr(2),$
+       'itrans2',fltarr(2),'mwtrans2',fltarr(2)
        'strans',fltarr(2),'hstrans',fltarr(2),'simstrans',fltarr(2),$
        'himstrans',fltarr(2),'mwpeak',fltarr(2),'eddplf',fltarr(3,7),$
        'edddf',fltarr(3,7),'eddtf',fltarr(3,7),'indtr',fltarr(2,7),'vsoft',0,$
@@ -111,7 +114,7 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
 ;explanation for some of the tags:
 
 ; inc: inclination
-; states: Kalemci 2013 states
+; states: Kalemci 2013 states; not valid for rise
 ; states2: standard states in Kalemci 2016
 ; bperiod, bsep: binary period and seperation
 ; XXXp : value of parameter for pca-only fits
@@ -122,8 +125,9 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
 ; totf200: 25-200 keV flux
 ; un....: unabsorbed values
 ; plf, dbbb: power law flux, diskbb flux
-; ttrans, itrans, mwtrans, strans: dates for transitions described in
+; ttrans, itrans1, mwtrans1, strans: dates for transitions described in
 ;                                  Kalemci2013
+; itrans2, mwtrans2: second transitions signifying end of HIMS/SIMS to soft state      
 ; hstrans: date hardening transition during decay- equivalent to hard state
 ; simstrans: if present, date of first transition to SIMS 
 ; himstrans: if present, date of first transition to HIMS
