@@ -104,7 +104,7 @@ outstr=create_struct('name',nname,'year',nyear, 'mass',nmass,$
        'plfp',fltarr(100), 'plf',fltarr(100), 'dbbp',fltarr(100),$
        'dbb',fltarr(100),'rms',fltarr(2,100),$
        'ttrans',fltarr(2),'itrans1',fltarr(2),'mwtrans1',fltarr(2),$
-       'itrans2',fltarr(2),'mwtrans2',fltarr(2)
+       'itrans2',fltarr(2),'mwtrans2',fltarr(2),$
        'strans',fltarr(2),'hstrans',fltarr(2),'simstrans',fltarr(2),$
        'himstrans',fltarr(2),'mwpeak',fltarr(2),'eddplf',fltarr(3,7),$
        'edddf',fltarr(3,7),'eddtf',fltarr(3,7),'indtr',fltarr(2,7),'vsoft',0,$
