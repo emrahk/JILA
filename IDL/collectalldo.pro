@@ -72,6 +72,7 @@ pro collectalldo, outstr, name, year, indir=dirin, crstr=crstr
 ; 2026 Feb
 ;
 ; fixing a magic number preventing getting correct obsid
+; fixing a statement preventing finding fit results if dirin is not correctly set
 ;
 
   
@@ -112,6 +113,9 @@ xdates=xdatesbs[srt]
 obs=obsbs[srt]
 outstr.obsid=obs
 outstr.xdates=xdates
+;reset dirin
+dirin=''
+FOR i=0, ndirs-3 DO dirin=dirin+parts[i]+'/'
 
 ;now read pca data and collect relevant info
 
