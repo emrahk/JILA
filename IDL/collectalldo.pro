@@ -68,6 +68,12 @@ pro collectalldo, outstr, name, year, indir=dirin, crstr=crstr
 ; 26 May
 ;
 ; Fixed a syntax error regarding total 25-200 keV fluxes.
+;
+; 2026 Feb
+;
+; fixing a magic number preventing getting correct obsid
+;
+
   
 ; create the structure that will hold relevant info
 
@@ -89,7 +95,8 @@ FOR i=0, nfm-1 DO BEGIN
    ;get the obs
 
    parts=strsplit(mjdfs[i],'/',/extract)
-   obsbs[i]=parts[1]
+   ndirs=n_elements(parts)
+   obsbs[i]=parts[ndirs-2]
 
    ;get mjds
 
