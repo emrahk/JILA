@@ -40,6 +40,8 @@ pro pl_mw, inpstr, inx, colcode, time, band=mwband, mwyr=yrmw, rfreq=freqr, $
 ;
 ; Rewriting based on succesfull pl1655mw.pro, April 2016
 ;
+; Making symsize compatible with plotsinglepar, 2026
+;
 
 IF NOT keyword_set(realtime) THEN realtime=0
 IF NOT keyword_set(mwband) THEN mwband='J'
@@ -85,21 +87,21 @@ IF NOT radonly THEN BEGIN
       IF keyword_set(yrmw) THEN yr=yrmw ELSE yr=[0.9*min(mwflux),1.1*max(mwflux)]
       IF keyword_set(xrmw) THEN xr=xrmw ELSE xr=[min(time)-1.,max(time)+1]                         
       cs=1.2
-       IF sepraxis THEN ploterror, [200,200], [100,100],[0,0], psym=3, $
+       IF sepraxis THEN ploterror, [0,0], [0,0],[0,0], /nodata, psym=3, $
                                    ytitle=ytit, yr=yr, xrange=xr,$
                                    /xstyle,ystyle=9,/nohat,chars=cs $
-               ELSE ploterror, [200,200], [100,100],[0,0], psym=3, $
+               ELSE ploterror, [0,0], [0,0],[0,0], /noata, psym=3, $
                                ytitle=ytit, yr=yr, xrange=xr,$
                                /xstyle,/ystyle,/nohat,chars=cs
    ENDIF
                          
 ;xtickformat='(I4)',/nohat, chars=1.2
 
-        IF aam[0] ne -1 THEN oploterror, mwtime[aam], mwflux[aam], mwfluxe[aam], psym=8, /nohat, color=colcode[0],errcol=colcode[0]
-        IF bbm[0] ne -1 THEN oploterror, mwtime[bbm], mwflux[bbm], mwfluxe[bbm], psym=8, /nohat, color=colcode[1],errcol=colcode[1]
-        IF ccm[0] ne -1 THEN oploterror, mwtime[ccm], mwflux[ccm], mwfluxe[ccm], psym=8, /nohat, color=colcode[2],errcol=colcode[2]
-        IF ddm[0] ne -1 THEN oploterror, mwtime[ddm], mwflux[ddm], mwfluxe[ddm], psym=8, /nohat, color=colcode[3],errcol=colcode[3]
-        IF eem[0] ne -1 THEN oploterror, mwtime[eem], mwflux[eem], mwfluxe[eem], psym=8, /nohat, color=colcode[4],errcol=colcode[4]
+        IF aam[0] ne -1 THEN oploterror, mwtime[aam], mwflux[aam], mwfluxe[aam], psym=8, /nohat, color=colcode[0],errcol=colcode[0],syms=1.3
+        IF bbm[0] ne -1 THEN oploterror, mwtime[bbm], mwflux[bbm], mwfluxe[bbm], psym=8, /nohat, color=colcode[1],errcol=colcode[1],syms=1.3
+        IF ccm[0] ne -1 THEN oploterror, mwtime[ccm], mwflux[ccm], mwfluxe[ccm], psym=8, /nohat, color=colcode[2],errcol=colcode[2],syms=1.3
+        IF ddm[0] ne -1 THEN oploterror, mwtime[ddm], mwflux[ddm], mwfluxe[ddm], psym=8, /nohat, color=colcode[3],errcol=colcode[3],syms=1.3
+        IF eem[0] ne -1 THEN oploterror, mwtime[eem], mwflux[eem], mwfluxe[eem], psym=8, /nohat, color=colcode[4],errcol=colcode[4],syms=1.3
 
      ENDIF
 
@@ -131,11 +133,11 @@ IF radonly THEN BEGIN
       IF keyword_set(yrmw) THEN yr=yrmw ELSE yr=[0.9*min(mwflux),1.1*max(mwflux)]
       IF keyword_set(xrmw) THEN xr=xrmw ELSE xr=[min(rtime)-1.,max(rtime)+1]                         
       cs=1.2
-      ploterror, [200,200], [100,100],[0,0], psym=3, ytitle=ytit, $
+      ploterror, [0,0], [0,0],[0,0], psym=3, ytitle=ytit, syms=1.3, /nodata, $
                             yr=yr, xrange=xr,/xstyle,/ystyle,/nohat,chars=cs
    ENDIF
 
-    ss=1.2
+    ss=1.3
         
    IF yy[0] NE -1 THEN BEGIN
          IF keyword_set(rthin) THEN BEGIN

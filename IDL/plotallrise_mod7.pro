@@ -59,7 +59,10 @@ noclose=noclose, pcaonly=pcaonly
 ;
 ; LOGS
 ; 
+; EK 2026
+; Fixed problems with noplotrin
 ;
+  
 
 IF NOT keyword_set(radonly) THEN radonly=0  ;only radio data present?
 IF NOT keyword_set(noplotrin) THEN noplotrin=0 ; do not plot rin
@@ -223,10 +226,12 @@ IF NOT NOPLOTRIN THEN BEGIN
    posly=!y.crange[0]+(!y.crange[1]-!y.crange[0])*0.5
    xyouts,poslx,posly,'e',size=1.5
 
+   multiplot
+   
 ENDIF
 
 
-multiplot
+;multiplot
 
 ; MULTIWAVELENGTH DATA
 
@@ -238,7 +243,7 @@ pl_mw, inpstr, inx, colcode, time, band=mwband, rfreq=freqr, radonly=radonly, $
 
 poslx=!x.crange[0]+(!x.crange[1]-!x.crange[0])*0.9
 posly=!y.crange[0]+(!y.crange[1]-!y.crange[0])*0.5
-xyouts,poslx,posly,'f',size=1.5
+IF noplotrin THEN xyouts,poslx,posly,'e',size=1.5 ELSE xyouts,poslx,posly,'f',size=1.5
 
 multiplot,/default
 
